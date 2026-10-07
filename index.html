@@ -1,0 +1,1770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMF Analytics — C Series (Capacity Planning)</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --white:#ffffff;--bg:#f7f8fa;--border:#e4e7ec;--border-light:#f0f2f5;
+  --purple:#6d28d9;--purple-h:#5b21b6;--purple-light:#ede9fe;--purple-mid:#8b5cf6;
+  --text:#0f172a;--text-sec:#475569;--text-muted:#94a3b8;--text-link:#6d28d9;
+  --red:#dc2626;--red-bg:#fef2f2;--red-border:#fecaca;
+  --amber:#b45309;--amber-bg:#fffbeb;--amber-border:#fde68a;
+  --green:#059669;--green-bg:#ecfdf5;--green-border:#6ee7b7;
+  --blue:#1d4ed8;--blue-bg:#eff6ff;--blue-border:#bfdbfe;
+  --orange:#c2410c;--orange-bg:#fff7ed;--orange-border:#fed7aa;
+  --teal:#0d9488;--teal-bg:#f0fdfa;--teal-border:#99f6e4;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,select,input,textarea{font-family:inherit}
+
+/* PROTO NAV */
+#pnav{position:fixed;top:0;left:0;right:0;height:34px;background:#1e1b4b;z-index:9999;display:flex;align-items:center;padding:0 10px;gap:3px;overflow-x:auto;border-bottom:2px solid #312e81}
+#pnav .lbl{font-size:10px;color:#818cf8;font-weight:700;letter-spacing:.08em;white-space:nowrap;margin-right:6px;flex-shrink:0}
+.pb{background:none;border:1px solid #3730a3;color:#a5b4fc;font-size:11px;padding:2px 9px;border-radius:3px;white-space:nowrap;flex-shrink:0;cursor:pointer;transition:all 100ms}
+.pb:hover{background:#312e81}.pb.on{background:#6d28d9;border-color:#6d28d9;color:#fff}
+.pdiv{width:1px;height:14px;background:#312e81;flex-shrink:0;margin:0 2px}
+
+/* SCREENS */
+.screen{display:none;padding-top:34px;min-height:100vh;flex-direction:column}.screen.on{display:flex}
+
+/* TOPNAV */
+.topnav{height:48px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;position:sticky;top:34px;z-index:100;flex-shrink:0}
+.tn-logo{width:48px;height:48px;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--border);flex-shrink:0}
+.tn-logomark{width:26px;height:26px;background:var(--purple);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff}
+.tn-brand{padding:0 14px;font-size:13px;font-weight:700;color:var(--text);border-right:1px solid var(--border);height:48px;display:flex;align-items:center;flex-shrink:0}
+.tn-bc{display:flex;align-items:center;gap:5px;padding:0 14px;font-size:13px;color:var(--text-sec);flex:1;overflow:hidden;min-width:0}
+.tn-bc a{color:var(--text-link);cursor:pointer;white-space:nowrap;flex-shrink:0}.tn-bc a:hover{text-decoration:underline}
+.tn-bc .sep{color:var(--text-muted);font-size:12px}.tn-bc .cur{color:var(--text-sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tn-right{display:flex;align-items:center;height:48px;margin-left:auto;flex-shrink:0}
+.tn-btn{height:48px;padding:0 14px;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-sec);border-left:1px solid var(--border);cursor:pointer;white-space:nowrap;transition:background 80ms}
+.tn-btn:hover{background:var(--bg)}
+.org-pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text-sec);background:var(--bg);border:1px solid var(--border);padding:3px 10px;border-radius:4px;cursor:pointer}
+
+/* DRILL BAR */
+.drill-bar{background:var(--bg);border-bottom:1px solid var(--border);padding:6px 28px;font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:5px;flex-shrink:0}
+.drill-bar a{color:var(--text-link);cursor:pointer}.drill-bar a:hover{text-decoration:underline}
+
+/* SHELL */
+.shell{display:flex;flex:1;min-height:0;overflow:hidden}
+.sidebar{width:48px;background:var(--white);border-right:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:2px}
+.sib{width:34px;height:34px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;color:var(--text-muted);transition:all 80ms}
+.sib:hover{background:var(--purple-light);color:var(--purple)}.sib.on{background:var(--purple-light);color:var(--purple)}
+.main{flex:1;overflow-y:auto;min-width:0}
+.right-rail{width:40px;background:var(--white);border-left:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;align-items:center;padding:8px 0;gap:3px}
+.rrb{width:26px;height:26px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text-muted);cursor:pointer}
+.rrb:hover{background:var(--purple-light);color:var(--purple)}
+
+/* CAPACITY NAV */
+.cap-wrap{display:flex;flex:1;min-height:0}
+.cap-nav{width:196px;flex-shrink:0;background:var(--white);border-right:1px solid var(--border);padding:20px 0;display:flex;flex-direction:column}
+.cn-group{font-size:11px;font-weight:600;color:var(--text-muted);padding:0 16px 6px;letter-spacing:.04em}
+.cn-item{display:flex;align-items:center;gap:9px;padding:8px 16px;font-size:13px;color:var(--text-sec);cursor:pointer;border-left:2px solid transparent;transition:all 80ms}
+.cn-item:hover{background:var(--bg);color:var(--text)}
+.cn-item.on{color:var(--purple);background:var(--purple-light);border-left-color:var(--purple);font-weight:500}
+.cn-icon{font-size:14px;flex-shrink:0;width:18px;text-align:center}
+.cn-badge{font-size:10px;background:var(--purple-light);color:var(--purple);padding:1px 5px;border-radius:8px;margin-left:auto;font-weight:600}
+.cn-divider{height:1px;background:var(--border-light);margin:8px 0}
+.cn-v1{font-size:10px;background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border);padding:1px 5px;border-radius:8px;margin-left:auto;font-weight:500}
+.cap-content{flex:1;padding:24px 28px;overflow-y:auto}
+
+/* PAGE HEADER */
+.page-title{font-size:21px;font-weight:600;color:var(--text);margin-bottom:2px;letter-spacing:-.3px}
+.page-desc{font-size:13px;color:var(--text-sec);margin-bottom:20px;line-height:1.5}
+
+/* REPORT DESC CARD */
+.rdc{background:var(--white);border:1px solid var(--border);border-radius:6px;padding:18px 22px;margin-bottom:14px;display:grid;grid-template-columns:1fr 240px;gap:28px}
+.rdc-q{font-size:11px;color:var(--text-muted);margin-bottom:3px;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+.rdc-title{font-size:17px;font-weight:600;color:var(--text);margin-bottom:8px;letter-spacing:-.2px}
+.rdc-body{font-size:12px;color:var(--text-sec);line-height:1.65}
+.rdc-body strong{color:var(--text)}
+.rdc-right{border-left:1px solid var(--border);padding-left:22px}
+.rdc-right-title{font-size:11px;font-weight:600;color:var(--text-sec);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em}
+.sev-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.sev-tbl td{padding:4px 0;color:var(--text-sec);border-bottom:1px solid var(--border-light)}
+.sev-tbl tr:last-child td{border-bottom:none}
+
+/* FINDING BANNER */
+.fb{border-radius:5px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:flex-start;gap:10px;font-size:12px}
+.fb-icon{font-size:14px;flex-shrink:0;margin-top:1px}.fb-body{flex:1}.fb-title{font-weight:600;margin-bottom:2px}.fb-desc{color:var(--text-sec);line-height:1.5}
+.fb-action{margin-left:auto;flex-shrink:0;align-self:center;padding-left:10px}
+.fb.warn{background:var(--amber-bg);border:1px solid var(--amber-border)}.fb.warn .fb-icon,.fb.warn .fb-title{color:var(--amber)}
+.fb.info{background:var(--blue-bg);border:1px solid var(--blue-border)}.fb.info .fb-icon,.fb.info .fb-title{color:var(--blue)}
+.fb.ok{background:var(--green-bg);border:1px solid var(--green-border)}.fb.ok .fb-icon,.fb.ok .fb-title{color:var(--green)}
+.fb.high{background:var(--orange-bg);border:1px solid var(--orange-border)}.fb.high .fb-icon,.fb.high .fb-title{color:var(--orange)}
+.fb.neutral{background:var(--bg);border:1px solid var(--border)}.fb.neutral .fb-icon{color:var(--text-muted)}.fb.neutral .fb-title{color:var(--text-sec)}
+
+/* TOOLBAR */
+.toolbar{background:var(--white);border:1px solid var(--border);border-radius:5px;padding:8px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.ctrl-sel{height:28px;background:var(--white);border:1px solid var(--border);border-radius:4px;color:var(--text-sec);font-size:12px;padding:0 8px;outline:none;cursor:pointer;transition:border-color 100ms}
+.ctrl-sel:focus{border-color:var(--purple)}
+.seg-ctrl{display:flex;border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.seg-btn{padding:4px 12px;font-size:12px;font-weight:500;color:var(--text-sec);background:var(--white);border:none;cursor:pointer;transition:all 80ms;border-right:1px solid var(--border)}
+.seg-btn:last-child{border-right:none}
+.seg-btn.on{background:var(--purple);color:#fff}
+.fchip{display:inline-flex;align-items:center;gap:4px;background:var(--purple-light);border:1px solid #c4b5fd;border-radius:10px;padding:2px 9px;font-size:11px;color:var(--purple);font-weight:500;white-space:nowrap}
+.fchip .cx{cursor:pointer;color:#a78bfa;margin-left:2px}.fchip .cx:hover{color:var(--red)}
+
+/* KPI ROW */
+.kpi-row{display:grid;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--white);margin-bottom:14px}
+.kpi-4{grid-template-columns:repeat(4,1fr)}.kpi-3{grid-template-columns:repeat(3,1fr)}.kpi-2{grid-template-columns:repeat(2,1fr)}
+.kpi-tile{padding:14px 18px;background:var(--white);border-right:1px solid var(--border);position:relative;cursor:pointer;transition:background 80ms}
+.kpi-tile:last-child{border-right:none}.kpi-tile:hover{background:#fafbfe}
+.kpi-tile::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+.kpi-tile.green::before{background:var(--green)}.kpi-tile.amber::before{background:var(--amber)}
+.kpi-tile.red::before{background:var(--red)}.kpi-tile.blue::before{background:var(--blue)}
+.kpi-tile.purple::before{background:var(--purple)}.kpi-tile.teal::before{background:var(--teal)}
+.kpi-tile.neu::before{background:var(--border)}
+.kpi-lbl{font-size:11px;color:var(--text-muted);margin-bottom:4px;font-weight:500}
+.kpi-val{font-size:22px;font-weight:600;color:var(--text);line-height:1;margin-bottom:3px}
+.kpi-val.red{color:var(--red)}.kpi-val.amber{color:var(--amber)}.kpi-val.green{color:var(--green)}.kpi-val.muted{color:var(--text-muted)}.kpi-val.blue{color:var(--blue)}
+.kpi-sub{font-size:11px;color:var(--text-muted);line-height:1.4}
+.kpi-delta{font-size:11px;font-weight:500;margin-top:3px}
+.kpi-delta.up-bad{color:var(--red)}.kpi-delta.up-good{color:var(--green)}.kpi-delta.dn-good{color:var(--green)}.kpi-delta.dn-bad{color:var(--red)}
+
+/* CHART CARDS */
+.chart-grid{display:grid;gap:14px;margin-bottom:14px}
+.cg-2{grid-template-columns:1fr 1fr}.cg-3{grid-template-columns:1fr 1fr 1fr}
+.chart-card{background:var(--white);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px}
+.chart-card-nm{margin-bottom:0}
+.chart-head{padding:12px 16px;border-bottom:1px solid var(--border-light);display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.chart-title{font-size:13px;font-weight:600;color:var(--text)}
+.chart-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+.chart-body{padding:12px 16px}
+.chart-foot{padding:6px 16px 10px;display:flex;align-items:center;gap:14px;border-top:1px solid var(--border-light);flex-wrap:wrap}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted)}
+.leg-line{width:16px;height:2px;border-radius:1px;flex-shrink:0}
+.leg-dash{width:16px;height:0;border-top:2px dashed;flex-shrink:0}
+.leg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.leg-sq{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+/* LPAR 9-CHART GRID */
+.nine-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+.mini-chart-card{background:var(--white);border:1px solid var(--border);border-radius:5px;overflow:hidden}
+.mc-head{padding:8px 12px;border-bottom:1px solid var(--border-light)}
+.mc-title{font-size:12px;font-weight:600;color:var(--text);margin-bottom:1px}
+.mc-sub{font-size:11px;color:var(--text-muted)}
+.mc-body{padding:8px 12px}
+
+/* CAPACITY TABLE */
+.tbl-wrap{background:var(--white);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px}
+.tbl-head{padding:10px 14px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+table{width:100%;border-collapse:collapse}
+thead tr{border-bottom:1px solid var(--border);background:var(--bg)}
+th{padding:8px 13px;text-align:left;font-size:11px;font-weight:600;color:var(--text-sec);white-space:nowrap;cursor:pointer;user-select:none}
+th.sd::after{content:' ↓';color:var(--purple)}th.sa::after{content:' ↑';color:var(--purple)}
+td{padding:9px 13px;font-size:13px;color:var(--text);border-bottom:1px solid var(--border-light);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr.cl{cursor:pointer}
+tbody tr.cl:hover td{background:#fafbfe}
+.tbl-foot{padding:8px 13px;font-size:12px;color:var(--text-muted);background:var(--bg);border-top:1px solid var(--border-light);display:flex;align-items:center;justify-content:space-between}
+/* row state borders */
+tbody tr.row-ok td:first-child{box-shadow:inset 2px 0 0 var(--green)}
+tbody tr.row-warn td:first-child{box-shadow:inset 2px 0 0 var(--amber)}
+tbody tr.row-crit td:first-child{box-shadow:inset 2px 0 0 var(--red)}
+.mono{font-family:'SFMono-Regular',Consolas,monospace;font-size:12px}
+.td-sec{color:var(--text-sec)}.td-muted{color:var(--text-muted)}
+.td-red{color:var(--red);font-weight:600}.td-amber{color:var(--amber);font-weight:500}
+.td-green{color:var(--green)}.td-link{color:var(--text-link);cursor:pointer}
+.td-link:hover{text-decoration:underline}
+
+/* HEADROOM BARS */
+.hw-bar-wrap{display:flex;align-items:center;gap:8px;width:100%}
+.hw-bar-track{flex:1;height:8px;background:var(--border);border-radius:4px;position:relative;overflow:hidden}
+.hw-bar-fill{height:100%;border-radius:4px;transition:width .3s}
+.hw-bar-thresh{position:absolute;top:0;bottom:0;width:2px;background:rgba(0,0,0,.15)}
+.hw-pct{font-size:12px;font-weight:600;flex-shrink:0;width:38px;text-align:right}
+.hw-rem{font-size:11px;color:var(--text-muted);flex-shrink:0;white-space:nowrap}
+
+/* HEADROOM CARD */
+.hw-card{background:var(--white);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:12px}
+.hw-card-head{padding:14px 18px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;gap:12px}
+.hw-lpar{font-size:13px;font-weight:700;color:var(--text);font-family:monospace}
+.hw-name{font-size:13px;color:var(--text-sec)}
+.hw-card-body{padding:14px 18px}
+.hw-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:12px}
+.hw-row:last-child{margin-bottom:0}
+.hw-metric{width:120px;flex-shrink:0;color:var(--text-muted)}
+
+/* BADGE */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap}
+.badge.ok{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
+.badge.warn{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)}
+.badge.crit{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
+.badge.info{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-border)}
+.badge.neu{background:var(--bg);color:var(--text-muted);border:1px solid var(--border)}
+.badge.purple{background:var(--purple-light);color:var(--purple);border:1px solid #c4b5fd}
+
+/* STEP ANNOTATION */
+.step-ann{font-size:11px;color:var(--text-sec);background:var(--purple-light);border:1px solid #c4b5fd;border-radius:3px;padding:2px 7px;display:inline-flex;align-items:center;gap:4px}
+
+/* CEC TABLE */
+.cec-block{background:var(--white);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:14px}
+.cec-machine-row{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;background:var(--bg)}
+.cec-mname{font-size:14px;font-weight:700;color:var(--text)}
+.cec-mdesc{font-size:12px;color:var(--text-sec)}
+.cec-chips{display:flex;gap:7px;flex-wrap:wrap;margin-left:auto}
+.cec-chip{font-size:11px;background:var(--white);border:1px solid var(--border);border-radius:4px;padding:3px 9px;color:var(--text-sec)}
+
+/* MODAL */
+.mbd{display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:500;align-items:center;justify-content:center;padding:20px}
+.mbd.on{display:flex}
+.modal{background:var(--white);border:1px solid var(--border);border-radius:8px;max-width:96vw;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.m-head{padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;position:sticky;top:0;background:var(--white);z-index:10}
+.m-title{font-size:15px;font-weight:600;color:var(--text)}.m-sub{font-size:12px;color:var(--text-muted);margin-top:2px}
+.m-close{width:26px;height:26px;background:none;border:none;color:var(--text-muted);font-size:17px;cursor:pointer;border-radius:4px;display:flex;align-items:center;justify-content:center}
+.m-close:hover{background:var(--bg);color:var(--text)}
+.m-body{padding:18px 20px}
+.m-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;position:sticky;bottom:0;background:var(--white)}
+
+/* PDF EXPORT MODAL */
+.pdf-section-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-light);font-size:13px}
+.pdf-section-row:last-child{border-bottom:none}
+.pdf-section-row input[type=checkbox]{accent-color:var(--purple);width:15px;height:15px;cursor:pointer;flex-shrink:0}
+.pdf-section-lbl{flex:1;color:var(--text)}
+.pdf-section-sub{font-size:11px;color:var(--text-muted)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:4px;font-size:12px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:all 80ms;white-space:nowrap;line-height:1}
+.btn-p{background:var(--purple);color:#fff}.btn-p:hover{background:var(--purple-h)}
+.btn-s{background:var(--white);border:1px solid var(--border);color:var(--text-sec)}.btn-s:hover{border-color:var(--purple);color:var(--purple)}
+.btn-g{background:transparent;color:var(--text-sec);padding:6px 8px;border:none}.btn-g:hover{background:var(--bg);border-radius:3px}
+.btn-sm{padding:4px 9px;font-size:11px}
+
+/* TOAST */
+.toast-wrap{position:fixed;bottom:18px;right:18px;display:flex;flex-direction:column;gap:5px;z-index:9998}
+.toast{background:var(--white);border:1px solid var(--border);border-radius:5px;padding:9px 13px;font-size:12px;color:var(--text);display:flex;align-items:center;gap:8px;min-width:220px;max-width:320px;box-shadow:0 4px 20px rgba(0,0,0,.12);animation:tin 150ms ease-out}
+.toast.ok{border-left:3px solid var(--green)}.toast.warn{border-left:3px solid var(--amber)}.toast.info{border-left:3px solid var(--blue)}
+@keyframes tin{from{transform:translateY(4px);opacity:0}to{opacity:1}}
+.t-x{color:var(--text-muted);cursor:pointer;margin-left:auto;flex-shrink:0}
+
+/* AI FAB */
+.ai-fab{position:fixed;bottom:22px;right:22px;width:42px;height:42px;background:var(--purple);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 14px rgba(109,40,217,.38);font-size:17px;color:#fff;border:none;z-index:200;transition:all 120ms}
+.ai-fab:hover{background:var(--purple-h);transform:scale(1.06)}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin-ring{width:9px;height:9px;border:2px solid rgba(109,40,217,.2);border-top-color:var(--purple);border-radius:50%;animation:spin .6s linear infinite;display:inline-block;flex-shrink:0}
+.flex-r{display:flex;align-items:center;gap:8px}.ml-a{margin-left:auto}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* TREND PROJECTION LABEL */
+.proj-note{font-size:11px;color:var(--text-muted);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:3px;padding:3px 8px;display:inline-flex;align-items:center;gap:4px}
+</style>
+</head>
+<body>
+
+<!-- PROTO NAV -->
+<div id="pnav">
+  <span class="lbl">C Series — Capacity</span>
+  <button class="pb on" onclick="go('c1')">1 · CPU Trends (30-day)</button>
+  <div class="pdiv"></div>
+  <button class="pb" onclick="go('c2')">2 · LPAR drill (9 charts)</button>
+  <div class="pdiv"></div>
+  <button class="pb" onclick="go('c3')">3 · LPAR Summary table</button>
+  <div class="pdiv"></div>
+  <button class="pb" onclick="go('c4')">4 · Headroom view</button>
+  <div class="pdiv"></div>
+  <button class="pb" onclick="go('c5')">5 · WLM 90-day trend</button>
+  <div class="pdiv"></div>
+  <button class="pb" onclick="go('c6')">6 · CEC hardware config</button>
+  <div class="pdiv"></div>
+  <button class="pb" onclick="go('c7')">7 · LSPR analysis (V1)</button>
+  <div class="pdiv"></div>
+  <button class="pb" onclick="go('c8')">8 · PDF export</button>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+
+<!-- Shared sidebar helper -->
+<script>
+function sidebar(active) {
+  return `
+    <div class="sib ${active==='db'?'on':''}" title="Dashboard" onclick="toast('B Series','info')">⊞</div>
+    <div class="sib" title="Findings" onclick="toast('B Series','info')">⚑</div>
+    <div class="sib" title="CPU" onclick="toast('B Series','info')">◫</div>
+    <div class="sib" title="Jobs" onclick="toast('B Series','info')">◻</div>
+    <div class="sib" title="DB2" onclick="toast('B Series','info')">◈</div>
+    <div class="sib ${active==='cap'?'on':''}" title="Capacity" onclick="go('c1')" style="font-size:13px">▣</div>
+    <div class="sib" style="margin-top:auto" title="Settings">⚙</div>
+    <div class="sib" title="You">👤</div>`;
+}
+function capNav(active) {
+  const items = [
+    {id:'c1',icon:'◉',lbl:'CPU Trends'},
+    {id:'c3',icon:'≡',lbl:'LPAR Summary'},
+    {id:'c4',icon:'◐',lbl:'Headroom'},
+    {id:'c5',icon:'⌇',lbl:'WLM 90-day'},
+    {id:'c6',icon:'⊟',lbl:'CEC Hardware'},
+    {id:'c7',icon:'⊕',lbl:'LSPR Analysis',v1:true},
+  ];
+  return `<div class="cn-group" style="margin-top:4px">Capacity Planning</div>`+
+    items.map(it=>`<div class="cn-item ${active===it.id?'on':''}" onclick="go('${it.id}')"><span class="cn-icon">${it.icon}</span>${it.lbl}${it.v1?'<span class="cn-v1">V1</span>':''}</div>`).join('')+
+    `<div class="cn-divider"></div>
+     <div class="cn-group">Export</div>
+     <div class="cn-item ${active==='c8'?'on':''}" onclick="go('c8')"><span class="cn-icon">⬇</span>PDF Report</div>`;
+}
+</script>
+
+<!-- ════════════════════════════════════════════════════
+  C1 — CPU TRENDS (30-DAY)
+  Shows: Daily peak MIPS and average MIPS across all
+  production LPARs over 30 days. One line per LPAR.
+  Capacity line steps up when hardware was upgraded.
+  Threshold line at client's configured 80%.
+  Linear trendline labelled clearly as extrapolation.
+  Toggle between MIPS and MSU.
+  Finding banner if peak breached threshold any day.
+════════════════════════════════════════════════════ -->
+<div class="screen on" id="c1">
+  <nav class="topnav">
+    <div class="tn-logo"><div class="tn-logomark">S</div></div>
+    <div class="tn-brand">SMF Analytics</div>
+    <div class="tn-bc"><a onclick="toast('Dashboard','info')">Dashboard</a><span class="sep">›</span><span class="cur">Capacity Planning</span></div>
+    <div class="tn-right"><div class="tn-btn"><div class="org-pill">🏢 Contoso Bank ⌄</div></div><div class="tn-btn">?</div></div>
+  </nav>
+  <div class="shell">
+    <aside class="sidebar" id="sb-c1"></aside>
+    <main class="main">
+      <div class="cap-wrap">
+        <nav class="cap-nav" id="cn-c1"></nav>
+        <div class="cap-content">
+          <div class="page-title">CPU Trends</div>
+          <div class="page-desc">30-day daily peak and average CPU · 3 production LPARs · capacity and threshold overlaid</div>
+
+          <div class="rdc">
+            <div>
+              <div class="rdc-q">Are we growing towards capacity — and when will we hit it?</div>
+              <div class="rdc-title">CPU Utilisation Trends</div>
+              <div class="rdc-body">
+                <strong>Area:</strong> Daily peak and average MIPS (or MSU) per LPAR for the last 30 ingestion runs.<br>
+                <strong>Capacity line:</strong> Steps up on 10 Sep when a zIIP engine was added to PROD1. That upgrade bought headroom visible in the chart.<br>
+                <strong>Trend line:</strong> Linear extrapolation of peak values. Assumes constant growth rate — treat as a directional indicator, not a forecast. Recalculated each run.<br>
+                <strong>Drill:</strong> Click any LPAR line or the legend entry to open the per-LPAR 9-chart detail view.
+              </div>
+            </div>
+            <div class="rdc-right">
+              <div class="rdc-right-title">Current headroom</div>
+              <table class="sev-tbl">
+                <tr><td>PROD1</td><td style="color:var(--orange);font-weight:600">13.9% · ~6 wks</td></tr>
+                <tr><td>PROD2</td><td style="color:var(--green)">29.9% · comfortable</td></tr>
+                <tr><td>DR1</td><td style="color:var(--text-muted)">intermittent data</td></tr>
+              </table>
+              <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">TEST1 suppressed from capacity views</div>
+            </div>
+          </div>
+
+          <div class="fb high">
+            <div class="fb-icon">▲</div>
+            <div class="fb-body">
+              <div class="fb-title">Finding: cpu_high — PROD1 breached 80% threshold on 24 Sep (most recent run)</div>
+              <div class="fb-desc">This was the first breach in the 30-day window. The trendline projects PROD1 will breach 90% within approximately 6 weeks at current growth rate. See Headroom view for detail.</div>
+            </div>
+            <div class="fb-action"><button class="btn btn-s btn-sm" onclick="go('c4')">Headroom →</button></div>
+          </div>
+
+          <div class="toolbar">
+            <div class="seg-ctrl">
+              <button class="seg-btn on" id="unit-mips" onclick="setUnit('MIPS')">MIPS</button>
+              <button class="seg-btn" id="unit-msu" onclick="setUnit('MSU')">MSU</button>
+            </div>
+            <div class="seg-ctrl">
+              <button class="seg-btn on" id="view-peak" onclick="setPeakAvg('peak')">Peak</button>
+              <button class="seg-btn" id="view-avg" onclick="setPeakAvg('avg')">Average</button>
+            </div>
+            <select class="ctrl-sel" id="lpar-sel-c1"><option value="all">All LPARs</option><option>PROD1</option><option>PROD2</option><option>DR1</option></select>
+            <select class="ctrl-sel" id="window-sel"><option>Last 30 runs</option><option>Last 60 runs</option><option>Last 90 runs</option></select>
+            <div class="ml-a flex-r">
+              <div class="proj-note">⚡ Trend = linear extrapolation · not a forecast</div>
+              <button class="btn btn-s btn-sm" onclick="toast('CSV downloaded','ok')">⬇ CSV</button>
+              <button class="btn btn-s btn-sm" onclick="go('c8')">⬇ PDF</button>
+            </div>
+          </div>
+
+          <!-- MAIN TREND CHART -->
+          <div class="chart-card">
+            <div class="chart-head">
+              <div>
+                <div class="chart-title">Daily peak CPU · all production LPARs · 26 Aug – 24 Sep 2026</div>
+                <div class="chart-sub">MIPS · 30 ingestion runs · capacity line steps on 10 Sep (zIIP added to PROD1)</div>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-g btn-sm" onclick="toast('Annotation: 10 Sep — +1 zIIP engine · PROD1 capacity +3,065 MIPS','info')">Annotations</button>
+                <button class="btn btn-g btn-sm" onclick="toast('Chart exported','ok')">⬇</button>
+              </div>
+            </div>
+            <div class="chart-body">
+              <svg width="100%" height="260" id="c-main-trend"></svg>
+            </div>
+            <div class="chart-foot">
+              <div class="leg"><div class="leg-line" style="background:#1d4ed8;height:2.5px"></div>PROD1 peak <span onclick="go('c2')" style="color:var(--text-link);cursor:pointer;font-size:10px">(drill →)</span></div>
+              <div class="leg"><div class="leg-line" style="background:#059669;height:2.5px"></div>PROD2 peak</div>
+              <div class="leg"><div class="leg-line" style="background:#94a3b8"></div>DR1 (intermittent)</div>
+              <div class="leg"><div class="leg-dash" style="border-color:#1d4ed8;border-style:dotted"></div>PROD1 trend</div>
+              <div class="leg"><div class="leg-dash" style="border-color:#b45309"></div>80% threshold</div>
+              <div class="leg"><div class="leg-dash" style="border-color:#dc2626"></div>Capacity (steps)</div>
+              <div class="step-ann" style="margin-left:auto">⊕ 10 Sep: +1 zIIP · PROD1</div>
+            </div>
+          </div>
+
+          <!-- DAILY PEAK TABLE — last 7 runs -->
+          <div class="tbl-wrap">
+            <div class="tbl-head">
+              <span style="font-size:13px;font-weight:600;color:var(--text)">Daily peak · last 7 runs</span>
+              <div class="ml-a"><button class="btn btn-s btn-sm" onclick="go('c3')">Full summary table →</button></div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Run date</th>
+                  <th>PROD1 peak</th>
+                  <th>PROD1 %</th>
+                  <th>PROD1 avg</th>
+                  <th>PROD2 peak</th>
+                  <th>PROD2 %</th>
+                  <th>DR1 peak</th>
+                  <th>30d trend</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="cl row-crit" onclick="go('c2')">
+                  <td class="mono" style="font-weight:700">24 Sep 2026</td>
+                  <td class="mono td-red" style="font-weight:700">11,247</td>
+                  <td class="td-red" style="font-weight:600">86.1%</td>
+                  <td class="mono">8,341</td>
+                  <td class="mono">5,696</td>
+                  <td class="td-green">70.1%</td>
+                  <td class="mono td-muted">—</td>
+                  <td class="td-red" style="font-size:11px">▲ 3.2%/mo</td>
+                </tr>
+                <tr class="cl row-ok" onclick="go('c2')">
+                  <td class="mono">23 Sep 2026</td>
+                  <td class="mono">10,382</td><td class="td-green">79.5%</td><td class="mono">7,912</td>
+                  <td class="mono">5,540</td><td class="td-green">68.2%</td><td class="mono td-muted">—</td>
+                  <td class="td-muted" style="font-size:11px">—</td>
+                </tr>
+                <tr class="cl row-ok" onclick="go('c2')">
+                  <td class="mono">22 Sep 2026</td>
+                  <td class="mono">10,180</td><td class="td-green">77.9%</td><td class="mono">7,810</td>
+                  <td class="mono">5,423</td><td class="td-green">66.8%</td><td class="mono">8,241</td>
+                  <td class="td-muted" style="font-size:11px">—</td>
+                </tr>
+                <tr class="cl row-ok"><td class="mono">21 Sep 2026</td><td class="mono">10,041</td><td class="td-green">76.9%</td><td class="mono">7,712</td><td class="mono">5,381</td><td class="td-green">66.3%</td><td class="mono">8,120</td><td class="td-muted" style="font-size:11px">—</td></tr>
+                <tr class="cl row-ok"><td class="mono">20 Sep 2026</td><td class="mono">9,882</td><td class="td-green">75.6%</td><td class="mono">7,641</td><td class="mono">5,312</td><td class="td-green">65.4%</td><td class="mono">8,004</td><td class="td-muted" style="font-size:11px">—</td></tr>
+                <tr class="cl row-ok"><td class="mono">19 Sep 2026</td><td class="mono">9,741</td><td class="td-green">74.5%</td><td class="mono">7,542</td><td class="mono">5,240</td><td class="td-green">64.5%</td><td class="mono">7,980</td><td class="td-muted" style="font-size:11px">—</td></tr>
+                <tr class="cl row-ok"><td class="mono">18 Sep 2026</td><td class="mono">9,600</td><td class="td-green">73.5%</td><td class="mono">7,421</td><td class="mono">5,181</td><td class="td-green">63.8%</td><td class="mono">8,012</td><td class="td-muted" style="font-size:11px">—</td></tr>
+              </tbody>
+            </table>
+            <div class="tbl-foot">
+              <span>7 of 30 runs shown · PROD1 capacity 13,065 MIPS · PROD2 capacity 8,120 MIPS</span>
+              <button class="btn btn-g btn-sm">Load all 30</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <div class="right-rail"><div class="rrb">ℹ</div><div class="rrb">⧩</div></div>
+  </div>
+  <button class="ai-fab" onclick="toast('AI: Ask me about capacity trends, headroom, or what-if scenarios','info')">✦</button>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+  C2 — PER-LPAR 9-CHART DRILL
+  Shows: PROD1 drilled. 9 panels each answering a
+  different capacity question. Intraday comparison
+  chart overlays last 5 days on one 24h axis.
+  Charts with no interesting data shown with note.
+════════════════════════════════════════════════════ -->
+<div class="screen" id="c2">
+  <nav class="topnav">
+    <div class="tn-logo"><div class="tn-logomark">S</div></div>
+    <div class="tn-brand">SMF Analytics</div>
+    <div class="tn-bc"><a onclick="go('c1')">CPU Trends</a><span class="sep">›</span><span class="cur">PROD1 — Detail</span></div>
+    <div class="tn-right"><div class="tn-btn"><div class="org-pill">🏢 Contoso Bank ⌄</div></div><div class="tn-btn">?</div></div>
+  </nav>
+  <div class="shell">
+    <aside class="sidebar" id="sb-c2"></aside>
+    <main class="main">
+      <div class="drill-bar">Drilled from <a onclick="go('c1')">CPU Trends</a> · PROD1 · 30-day view</div>
+      <div class="cap-wrap">
+        <nav class="cap-nav" id="cn-c2"></nav>
+        <div class="cap-content">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px;flex-wrap:wrap">
+            <div>
+              <div class="page-title">PROD1 — Capacity Detail</div>
+              <div class="page-desc">IBM z15 · 2 CP engines · 13,065 MSU entitled · 15-min RMF · 30 runs</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0">
+              <button class="btn btn-s btn-sm" onclick="toast('Previous LPAR: none','info')">← PROD2</button>
+              <select class="ctrl-sel"><option>Last 30 runs</option><option>Last 60 runs</option></select>
+              <button class="btn btn-s btn-sm" onclick="toast('Export 9-chart PDF','ok')">⬇ PDF</button>
+            </div>
+          </div>
+
+          <div class="kpi-row kpi-4" style="margin-bottom:14px">
+            <div class="kpi-tile red"><div class="kpi-lbl">Peak MIPS (24 Sep)</div><div class="kpi-val red">11,247</div><div class="kpi-sub">86.1% of 13,065</div></div>
+            <div class="kpi-tile amber"><div class="kpi-lbl">Average MIPS (30d)</div><div class="kpi-val amber">8,012</div><div class="kpi-sub">61.3% of capacity</div></div>
+            <div class="kpi-tile amber"><div class="kpi-lbl">Entitled CPU busy %</div><div class="kpi-val amber">61.7%</div><div class="kpi-sub">30-day average</div></div>
+            <div class="kpi-tile blue"><div class="kpi-lbl">zIIP eligible %</div><div class="kpi-val blue">38.2%</div><div class="kpi-sub">of total GP CP work</div></div>
+          </div>
+
+          <!-- 9 CHARTS -->
+          <div class="nine-grid">
+
+            <!-- 1 -->
+            <div class="mini-chart-card">
+              <div class="mc-head"><div class="mc-title">Peak MIPS + capacity + threshold</div><div class="mc-sub">30 runs · capacity stepped 10 Sep</div></div>
+              <div class="mc-body"><svg width="100%" height="130" id="mc1"></svg></div>
+              <div style="padding:4px 12px 8px;display:flex;gap:10px;flex-wrap:wrap">
+                <div class="leg"><div class="leg-line" style="background:#1d4ed8"></div>Peak</div>
+                <div class="leg"><div class="leg-dash" style="border-color:#dc2626"></div>Cap</div>
+                <div class="leg"><div class="leg-dash" style="border-color:#b45309"></div>80%</div>
+              </div>
+            </div>
+
+            <!-- 2 -->
+            <div class="mini-chart-card">
+              <div class="mc-head"><div class="mc-title">Average MIPS · 30 runs</div><div class="mc-sub">Daily avg dispatch · smoothed</div></div>
+              <div class="mc-body"><svg width="100%" height="130" id="mc2"></svg></div>
+              <div style="padding:4px 12px 8px"><div class="leg"><div class="leg-line" style="background:#059669"></div>Avg MIPS</div></div>
+            </div>
+
+            <!-- 3 — intraday overlay -->
+            <div class="mini-chart-card">
+              <div class="mc-head"><div class="mc-title">Intraday pattern · last 5 days overlaid</div><div class="mc-sub">24h axis · 15-min RMF · daily shape comparison</div></div>
+              <div class="mc-body"><svg width="100%" height="130" id="mc3"></svg></div>
+              <div style="padding:4px 12px 8px;font-size:10px;color:var(--text-muted)">Each line = one day. Darker = more recent. Spike on 24 Sep (red) at 22:00 visible.</div>
+            </div>
+
+            <!-- 4 -->
+            <div class="mini-chart-card">
+              <div class="mc-head"><div class="mc-title">By LPAR · 30-day daily peak</div><div class="mc-sub">PROD1 vs PROD2 for context</div></div>
+              <div class="mc-body"><svg width="100%" height="130" id="mc4"></svg></div>
+              <div style="padding:4px 12px 8px;display:flex;gap:10px">
+                <div class="leg"><div class="leg-line" style="background:#1d4ed8"></div>PROD1</div>
+                <div class="leg"><div class="leg-line" style="background:#059669"></div>PROD2</div>
+              </div>
+            </div>
+
+            <!-- 5 -->
+            <div class="mini-chart-card">
+              <div class="mc-head"><div class="mc-title">Average by CPU type</div><div class="mc-sub">CP · zIIP · 30 runs</div></div>
+              <div class="mc-body"><svg width="100%" height="130" id="mc5"></svg></div>
+              <div style="padding:4px 12px 8px;display:flex;gap:10px">
+                <div class="leg"><div class="leg-line" style="background:#1d4ed8"></div>GP CP</div>
+                <div class="leg"><div class="leg-line" style="background:#6d28d9"></div>zIIP</div>
+              </div>
+            </div>
+
+            <!-- 6 -->
+            <div class="mini-chart-card">
+              <div class="mc-head"><div class="mc-title">Peak % of capacity · 30 runs</div><div class="mc-sub">One dot per run · threshold 80%</div></div>
+              <div class="mc-body"><svg width="100%" height="130" id="mc6"></svg></div>
+              <div style="padding:4px 12px 8px;font-size:10px;color:var(--text-muted)">Red dot = 24 Sep breach</div>
+            </div>
+
+            <!-- 7 -->
+            <div class="mini-chart-card">
+              <div class="mc-head"><div class="mc-title">Entitled CPU busy %</div><div class="mc-sub">From SMF 70 CPUBUSY field · 30 runs</div></div>
+              <div class="mc-body"><svg width="100%" height="130" id="mc7"></svg></div>
+              <div style="padding:4px 12px 8px;font-size:10px;color:var(--text-muted)">Distinct from dispatch % — includes stolen cycles</div>
+            </div>
+
+            <!-- 8 -->
+            <div class="mini-chart-card">
+              <div class="mc-head"><div class="mc-title">zIIP eligible % of GP CP work</div><div class="mc-sub">Higher = more offload opportunity</div></div>
+              <div class="mc-body"><svg width="100%" height="130" id="mc8"></svg></div>
+              <div style="padding:4px 12px 8px;font-size:10px;color:var(--text-muted)">38% eligible. Improving zIIP offload could free ~3,500 MIPS of GP capacity.</div>
+            </div>
+
+            <!-- 9 — linear trend + projection -->
+            <div class="mini-chart-card" style="border:1px solid #c4b5fd">
+              <div class="mc-head" style="background:var(--purple-light)">
+                <div><div class="mc-title" style="color:var(--purple)">Peak MIPS trend + projection</div><div class="mc-sub">Linear extrapolation · 60 days forward</div></div>
+              </div>
+              <div class="mc-body"><svg width="100%" height="130" id="mc9"></svg></div>
+              <div style="padding:4px 12px 8px;font-size:10px;color:var(--amber)">⚡ Projection assumes 3.2%/month growth rate. Reaches 90% capacity ~6 Nov 2026.</div>
+            </div>
+
+          </div>
+
+          <div style="display:flex;gap:10px;justify-content:flex-end">
+            <button class="btn btn-s" onclick="go('c1')">← CPU Trends</button>
+            <button class="btn btn-p" onclick="go('c4')">View headroom →</button>
+          </div>
+        </div>
+      </div>
+    </main>
+    <div class="right-rail"><div class="rrb">ℹ</div><div class="rrb">⧩</div></div>
+  </div>
+  <button class="ai-fab" onclick="toast('AI: Ask about PROD1 growth, zIIP headroom, or what-if capacity','info')">✦</button>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+  C3 — LPAR CAPACITY SUMMARY TABLE
+  The executive view. One row per LPAR.
+  Every key metric in one scannable table.
+  Sortable. Export to CSV or PDF.
+════════════════════════════════════════════════════ -->
+<div class="screen" id="c3">
+  <nav class="topnav">
+    <div class="tn-logo"><div class="tn-logomark">S</div></div>
+    <div class="tn-brand">SMF Analytics</div>
+    <div class="tn-bc"><a onclick="go('c1')">CPU Trends</a><span class="sep">›</span><span class="cur">LPAR Summary</span></div>
+    <div class="tn-right"><div class="tn-btn"><div class="org-pill">🏢 Contoso Bank ⌄</div></div><div class="tn-btn">?</div></div>
+  </nav>
+  <div class="shell">
+    <aside class="sidebar" id="sb-c3"></aside>
+    <main class="main">
+      <div class="cap-wrap">
+        <nav class="cap-nav" id="cn-c3"></nav>
+        <div class="cap-content">
+          <div class="page-title">LPAR Summary</div>
+          <div class="page-desc">One row per LPAR · all key capacity metrics · 30-day data · last run 24 Sep 2026</div>
+
+          <div class="fb info">
+            <div class="fb-icon">ℹ</div>
+            <div class="fb-body">
+              <div class="fb-desc">Hardware model, entitled processors, and MSU capacity are detected from SMF types 1, 2, and 89. They are read-only — if they look wrong, check that SMF 1/2 records are included in your GDG. TEST1 is suppressed from this view — it appears in the raw reports if filtered explicitly.</div>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <select class="ctrl-sel"><option>As at: 24 Sep 2026</option><option>30-day peak</option><option>30-day average</option></select>
+            <div class="seg-ctrl">
+              <button class="seg-btn on" onclick="this.parentElement.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('on'));this.classList.add('on')">MIPS</button>
+              <button class="seg-btn" onclick="this.parentElement.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('on'));this.classList.add('on')">MSU</button>
+            </div>
+            <div class="ml-a flex-r">
+              <button class="btn btn-s btn-sm" onclick="toast('CSV downloaded','ok')">⬇ CSV</button>
+              <button class="btn btn-s btn-sm" onclick="go('c8')">⬇ PDF</button>
+            </div>
+          </div>
+
+          <div class="tbl-wrap">
+            <div class="tbl-head">
+              <span style="font-size:13px;font-weight:600;color:var(--text)">3 production LPARs</span>
+              <span style="font-size:12px;color:var(--text-muted);margin-left:6px">· IBM z15 · 30-day data through 24 Sep 2026</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>LPAR</th>
+                  <th>Hardware</th>
+                  <th>CP engines</th>
+                  <th>MSU entitled</th>
+                  <th class="sd">30d peak MIPS</th>
+                  <th>Peak %</th>
+                  <th>30d avg MIPS</th>
+                  <th>Avg %</th>
+                  <th>Entitled busy %</th>
+                  <th>zIIP eligible %</th>
+                  <th>Trend</th>
+                  <th style="width:60px"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="cl row-crit" onclick="go('c2')">
+                  <td>
+                    <div class="mono" style="font-weight:700">PROD1</div>
+                    <div style="font-size:11px;color:var(--text-muted)">Production 1</div>
+                  </td>
+                  <td class="mono td-sec" style="font-size:11px">z15 / 3907</td>
+                  <td class="mono" style="font-weight:600">2 CP</td>
+                  <td class="mono">13,065</td>
+                  <td class="mono td-red" style="font-weight:700;font-size:16px">11,247</td>
+                  <td>
+                    <div class="hw-bar-wrap">
+                      <div class="hw-bar-track"><div class="hw-bar-fill" style="width:86.1%;background:#dc2626"></div><div class="hw-bar-thresh" style="left:80%"></div></div>
+                      <span class="hw-pct td-red">86.1%</span>
+                    </div>
+                  </td>
+                  <td class="mono">8,012</td>
+                  <td style="color:var(--amber);font-weight:500">61.3%</td>
+                  <td style="color:var(--amber);font-weight:500">61.7%</td>
+                  <td style="color:var(--blue)">38.2%</td>
+                  <td style="color:var(--red);font-size:11px;font-weight:500">▲ 3.2%/mo</td>
+                  <td><button class="btn btn-s btn-sm" onclick="go('c2')">Drill →</button></td>
+                </tr>
+                <tr class="cl row-ok" onclick="toast('PROD2 drill — coming in full build','info')">
+                  <td>
+                    <div class="mono" style="font-weight:700">PROD2</div>
+                    <div style="font-size:11px;color:var(--text-muted)">Production 2</div>
+                  </td>
+                  <td class="mono td-sec" style="font-size:11px">z15 / 3907</td>
+                  <td class="mono" style="font-weight:600">1 CP</td>
+                  <td class="mono">8,120</td>
+                  <td class="mono td-green" style="font-weight:700">5,696</td>
+                  <td>
+                    <div class="hw-bar-wrap">
+                      <div class="hw-bar-track"><div class="hw-bar-fill" style="width:70.1%;background:#059669"></div><div class="hw-bar-thresh" style="left:80%"></div></div>
+                      <span class="hw-pct td-green">70.1%</span>
+                    </div>
+                  </td>
+                  <td class="mono">4,891</td>
+                  <td style="color:var(--green)">60.2%</td>
+                  <td style="color:var(--green)">60.5%</td>
+                  <td style="color:var(--blue)">29.4%</td>
+                  <td style="color:var(--green);font-size:11px">▲ 1.1%/mo</td>
+                  <td><button class="btn btn-s btn-sm" onclick="toast('PROD2 drill','info')">Drill →</button></td>
+                </tr>
+                <tr class="row-ok">
+                  <td>
+                    <div class="mono" style="font-weight:700;color:var(--text-muted)">DR1</div>
+                    <div style="font-size:11px;color:var(--text-muted)">Disaster Recovery</div>
+                  </td>
+                  <td class="mono td-muted" style="font-size:11px">z15 / 3907</td>
+                  <td class="mono td-muted">2 CP</td>
+                  <td class="mono td-muted">13,065</td>
+                  <td class="mono td-muted">8,241</td>
+                  <td>
+                    <div class="hw-bar-wrap">
+                      <div class="hw-bar-track"><div class="hw-bar-fill" style="width:63%;background:#94a3b8"></div><div class="hw-bar-thresh" style="left:80%"></div></div>
+                      <span class="hw-pct td-muted">63.1%</span>
+                    </div>
+                  </td>
+                  <td class="mono td-muted">—</td>
+                  <td class="td-muted">—</td>
+                  <td class="td-muted">—</td>
+                  <td class="td-muted">—</td>
+                  <td style="font-size:11px;color:var(--text-muted)">intermittent</td>
+                  <td><span class="badge neu">Suppressed</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="tbl-foot">
+              <span>3 LPARs · IBM z15 estate · TEST1 excluded (suppressed)</span>
+              <span style="color:var(--text-muted)">│ threshold lines at 80% of MSU entitled</span>
+            </div>
+          </div>
+
+          <!-- ESTATE SUMMARY BANNER -->
+          <div class="fb warn">
+            <div class="fb-icon">▲</div>
+            <div class="fb-body">
+              <div class="fb-title">PROD1 requires attention within 6 weeks</div>
+              <div class="fb-desc">At current growth rate (3.2%/mo), PROD1 will reach 90% capacity by approximately 6 Nov 2026. PROD2 is comfortable at current trajectory. Recommend a capacity planning review for Q4 2026. See Headroom view for projected breach dates.</div>
+            </div>
+            <div class="fb-action">
+              <button class="btn btn-p btn-sm" onclick="go('c4')">View headroom →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <div class="right-rail"><div class="rrb">ℹ</div><div class="rrb">⧩</div></div>
+  </div>
+  <button class="ai-fab" onclick="toast('AI: I can compare your LPARs or model a hardware upgrade scenario','info')">✦</button>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+  C4 — HEADROOM VIEW
+  The "so what". Per-LPAR headroom as MIPS, % remaining,
+  and weeks-at-current-growth. Clear verdict per LPAR.
+════════════════════════════════════════════════════ -->
+<div class="screen" id="c4">
+  <nav class="topnav">
+    <div class="tn-logo"><div class="tn-logomark">S</div></div>
+    <div class="tn-brand">SMF Analytics</div>
+    <div class="tn-bc"><a onclick="go('c1')">CPU Trends</a><span class="sep">›</span><span class="cur">Headroom</span></div>
+    <div class="tn-right"><div class="tn-btn"><div class="org-pill">🏢 Contoso Bank ⌄</div></div><div class="tn-btn">?</div></div>
+  </nav>
+  <div class="shell">
+    <aside class="sidebar" id="sb-c4"></aside>
+    <main class="main">
+      <div class="cap-wrap">
+        <nav class="cap-nav" id="cn-c4"></nav>
+        <div class="cap-content">
+          <div class="page-title">Capacity Headroom</div>
+          <div class="page-desc">Remaining CPU headroom per LPAR · based on 30-day peak · growth projection at current trend rate</div>
+
+          <div class="fb high">
+            <div class="fb-icon">▲</div>
+            <div class="fb-body">
+              <div class="fb-title">Action required — PROD1 projected to reach 90% capacity by 6 Nov 2026</div>
+              <div class="fb-desc">PROD1 breached 80% for the first time on 24 Sep. At its current 3.2%/month growth rate, it will hit 90% in approximately 6 weeks. Begin a hardware upgrade or zIIP offload review now to avoid an unmanaged breach.</div>
+            </div>
+          </div>
+
+          <div class="proj-note" style="margin-bottom:14px;font-size:12px;padding:5px 12px">⚡ Projections use linear extrapolation of the 30-day peak trend. They assume growth rate stays constant — if batch volume changes or a new workload is added, recalculate. This is a planning indicator, not a commitment.</div>
+
+          <!-- HEADROOM CARDS -->
+          <div class="hw-card" style="border-color:var(--orange-border)">
+            <div class="hw-card-head">
+              <div class="hw-lpar">PROD1</div>
+              <div class="hw-name">Production 1</div>
+              <span class="badge warn" style="margin-left:auto">Action required</span>
+            </div>
+            <div class="hw-card-body">
+              <div class="hw-row">
+                <span class="hw-metric">Current peak</span>
+                <div class="hw-bar-wrap" style="flex:1">
+                  <div class="hw-bar-track" style="flex:1"><div class="hw-bar-fill" style="width:86.1%;background:#dc2626"></div><div class="hw-bar-thresh" style="left:80%"></div></div>
+                  <span class="hw-pct td-red">86.1%</span>
+                  <span class="hw-rem">11,247 of 13,065 MIPS</span>
+                </div>
+              </div>
+              <div class="hw-row">
+                <span class="hw-metric">Remaining headroom</span>
+                <span style="font-size:17px;font-weight:600;color:var(--orange)">1,818 MIPS</span>
+                <span style="font-size:12px;color:var(--text-muted);margin-left:8px">13.9% of entitled capacity</span>
+              </div>
+              <div class="hw-row">
+                <span class="hw-metric">Growth rate</span>
+                <span style="color:var(--red);font-weight:500">▲ 3.2% / month (linear trend · 30 days)</span>
+              </div>
+              <div class="hw-row">
+                <span class="hw-metric">Projected 90% breach</span>
+                <span style="font-size:15px;font-weight:600;color:var(--red)">~6 Nov 2026</span>
+                <span style="font-size:12px;color:var(--text-muted);margin-left:8px">approx 6 weeks</span>
+              </div>
+              <div class="hw-row" style="margin-top:4px">
+                <span class="hw-metric">zIIP offload opportunity</span>
+                <span style="color:var(--blue)">38.2% of GP CP work is zIIP eligible → ~3,500 MIPS freed if fully offloaded</span>
+              </div>
+              <div class="hw-row">
+                <span class="hw-metric">Hardware upgrade path</span>
+                <span style="color:var(--text-sec)">Adding 1 CP engine would increase entitlement to ~19,600 MIPS. That buys ~18 months at current growth rate.</span>
+              </div>
+              <div style="margin-top:12px;display:flex;gap:8px">
+                <button class="btn btn-p btn-sm" onclick="toast('AI What-if: +1 CP engine → PROD1 capacity headroom model','info')">✦ Model: +1 CP engine</button>
+                <button class="btn btn-s btn-sm" onclick="go('c2')">View 30-day trend →</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="hw-card">
+            <div class="hw-card-head">
+              <div class="hw-lpar">PROD2</div>
+              <div class="hw-name">Production 2</div>
+              <span class="badge ok" style="margin-left:auto">Comfortable</span>
+            </div>
+            <div class="hw-card-body">
+              <div class="hw-row">
+                <span class="hw-metric">Current peak</span>
+                <div class="hw-bar-wrap" style="flex:1">
+                  <div class="hw-bar-track" style="flex:1"><div class="hw-bar-fill" style="width:70.1%;background:#059669"></div><div class="hw-bar-thresh" style="left:80%"></div></div>
+                  <span class="hw-pct td-green">70.1%</span>
+                  <span class="hw-rem">5,696 of 8,120 MIPS</span>
+                </div>
+              </div>
+              <div class="hw-row">
+                <span class="hw-metric">Remaining headroom</span>
+                <span style="font-size:17px;font-weight:600;color:var(--green)">2,424 MIPS</span>
+                <span style="font-size:12px;color:var(--text-muted);margin-left:8px">29.9% of entitled capacity</span>
+              </div>
+              <div class="hw-row">
+                <span class="hw-metric">Growth rate</span>
+                <span style="color:var(--green);font-weight:500">▲ 1.1% / month</span>
+              </div>
+              <div class="hw-row">
+                <span class="hw-metric">Projected 90% breach</span>
+                <span style="font-size:15px;font-weight:600;color:var(--green)">Not within 12 months</span>
+                <span style="font-size:12px;color:var(--text-muted);margin-left:8px">at current rate</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hw-card">
+            <div class="hw-card-head">
+              <div class="hw-lpar" style="color:var(--text-muted)">DR1</div>
+              <div class="hw-name" style="color:var(--text-muted)">Disaster Recovery — intermittent data</div>
+              <span class="badge neu" style="margin-left:auto">Insufficient data</span>
+            </div>
+            <div class="hw-card-body">
+              <div class="fb neutral" style="margin-bottom:0">
+                <div class="fb-icon">ℹ</div>
+                <div class="fb-body"><div class="fb-desc">DR1 appears in your GDG intermittently — only present in 14 of the last 30 generations. Headroom projection requires at least 14 consecutive data points to be reliable. Data last seen: 22 Sep 2026. If DR1 should be reporting consistently, check with your systems team.</div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PROJECTION CHART -->
+          <div class="chart-card">
+            <div class="chart-head">
+              <div>
+                <div class="chart-title">Peak MIPS projection · PROD1 · 30-day history + 60-day forward</div>
+                <div class="chart-sub">Historical (solid) · Linear projection (dotted) · capacity and threshold lines</div>
+              </div>
+              <div class="proj-note">⚡ Linear extrapolation only</div>
+            </div>
+            <div class="chart-body"><svg width="100%" height="200" id="c-proj"></svg></div>
+            <div class="chart-foot">
+              <div class="leg"><div class="leg-line" style="background:#1d4ed8"></div>Actual peak</div>
+              <div class="leg"><div class="leg-dash" style="border-color:#1d4ed8"></div>Projected</div>
+              <div class="leg"><div class="leg-dash" style="border-color:#dc2626"></div>Capacity</div>
+              <div class="leg"><div class="leg-dash" style="border-color:#b45309"></div>80% threshold</div>
+              <div class="leg" style="margin-left:auto"><span style="font-size:11px;color:var(--red)">⬤ 6 Nov: projected 90%</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <div class="right-rail"><div class="rrb">ℹ</div><div class="rrb">⧩</div></div>
+  </div>
+  <button class="ai-fab" onclick="toast('AI: Ask me to model a hardware upgrade or zIIP offload improvement','info')">✦</button>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+  C5 — WLM 90-DAY TREND
+  Shows: Daily aggregated MSU per WLM service class
+  over 90 days. Planning view — not interval drill.
+  Which workloads are growing? By how much per month?
+════════════════════════════════════════════════════ -->
+<div class="screen" id="c5">
+  <nav class="topnav">
+    <div class="tn-logo"><div class="tn-logomark">S</div></div>
+    <div class="tn-brand">SMF Analytics</div>
+    <div class="tn-bc"><a onclick="go('c1')">CPU Trends</a><span class="sep">›</span><span class="cur">WLM 90-day Trend</span></div>
+    <div class="tn-right"><div class="tn-btn"><div class="org-pill">🏢 Contoso Bank ⌄</div></div><div class="tn-btn">?</div></div>
+  </nav>
+  <div class="shell">
+    <aside class="sidebar" id="sb-c5"></aside>
+    <main class="main">
+      <div class="cap-wrap">
+        <nav class="cap-nav" id="cn-c5"></nav>
+        <div class="cap-content">
+          <div class="page-title">WLM Workload Trends</div>
+          <div class="page-desc">SMF Record Type 72 · Daily aggregated MSU per service class · PROD1 · 90 runs (July – Sep 2026)</div>
+
+          <div class="rdc">
+            <div>
+              <div class="rdc-q">Which workloads are growing — and at what rate?</div>
+              <div class="rdc-title">WLM 90-day Workload Trend</div>
+              <div class="rdc-body">
+                <strong>Area:</strong> WLM service class, aggregated to daily total MSU. One line per service class.<br>
+                <strong>Note:</strong> WLM response-time goal attainment is not shown here — goals are not configured in your WLM service definition. This view shows MSU consumption only.<br>
+                <strong>Drill:</strong> Click a service class line or row to see its 30-day interval-level data in the B-series WLM report.
+              </div>
+            </div>
+            <div class="rdc-right">
+              <div class="rdc-right-title">Growth rates · 90-day</div>
+              <table class="sev-tbl">
+                <tr><td>PAYROLL</td><td style="color:var(--red);font-weight:600">▲ 4.1%/mo</td></tr>
+                <tr><td>ONLINE_TX</td><td style="color:var(--green)">▲ 0.8%/mo</td></tr>
+                <tr><td>BATCH_GEN</td><td style="color:var(--text-muted)">▼ 0.2%/mo</td></tr>
+                <tr><td>REPORTS</td><td style="color:var(--amber)">▲ 2.1%/mo</td></tr>
+              </table>
+            </div>
+          </div>
+
+          <div class="fb high">
+            <div class="fb-icon">▲</div>
+            <div class="fb-body">
+              <div class="fb-title">PAYROLL growing at 4.1%/month — the primary driver of PROD1 capacity pressure</div>
+              <div class="fb-desc">PAYROLL's daily MSU has grown from 2,100 MSU (1 Jul) to 2,812 MSU (24 Sep) — a 33.9% increase in 87 days. At this rate it will exceed 3,500 MSU by January 2027. This directly explains why PROD1's total CPU is growing faster than PROD2's.</div>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <select class="ctrl-sel"><option>PROD1</option><option>PROD2</option><option>All LPARs</option></select>
+            <select class="ctrl-sel"><option>Last 90 runs</option><option>Last 60 runs</option><option>Last 30 runs</option></select>
+            <div class="ml-a"><button class="btn btn-s btn-sm" onclick="toast('CSV downloaded','ok')">⬇ CSV</button></div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-head">
+              <div><div class="chart-title">Daily MSU by service class · PROD1 · 1 Jul – 24 Sep 2026</div><div class="chart-sub">90 daily aggregated runs · stacked area view</div></div>
+              <div style="display:flex;gap:6px">
+                <div class="seg-ctrl">
+                  <button class="seg-btn on">Stacked</button>
+                  <button class="seg-btn">Lines</button>
+                </div>
+                <button class="btn btn-g btn-sm" onclick="toast('Exported','ok')">⬇</button>
+              </div>
+            </div>
+            <div class="chart-body"><svg width="100%" height="240" id="c-wlm90"></svg></div>
+            <div class="chart-foot">
+              <div class="leg"><div class="leg-sq" style="background:#dc2626"></div>PAYROLL (▲ 4.1%/mo)</div>
+              <div class="leg"><div class="leg-sq" style="background:#1d4ed8"></div>ONLINE_TX (▲ 0.8%/mo)</div>
+              <div class="leg"><div class="leg-sq" style="background:#6d28d9"></div>REPORTS (▲ 2.1%/mo)</div>
+              <div class="leg"><div class="leg-sq" style="background:#059669"></div>BATCH_GEN (stable)</div>
+              <div class="proj-note" style="margin-left:auto">Stacked = total MSU · lines show each class independently</div>
+            </div>
+          </div>
+
+          <!-- GROWTH TABLE -->
+          <div class="tbl-wrap">
+            <div class="tbl-head"><span style="font-size:13px;font-weight:600;color:var(--text)">Service class growth summary</span></div>
+            <table>
+              <thead><tr><th>Service class</th><th>Workload type</th><th>1 Jul MSU</th><th>24 Sep MSU</th><th>Change</th><th class="sd">Growth rate</th><th>Proj Jan 2027</th><th>Risk</th></tr></thead>
+              <tbody>
+                <tr class="cl row-crit" onclick="toast('PAYROLL — 30-day interval drill in B Series WLM','info')">
+                  <td style="font-weight:600;color:var(--red)">PAYROLL</td>
+                  <td><span style="font-size:11px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);padding:2px 7px;border-radius:10px">BATCH</span></td>
+                  <td class="mono">2,100</td><td class="mono td-red">2,812</td>
+                  <td class="td-red" style="font-weight:500">▲ 712 MSU (+33.9%)</td>
+                  <td class="td-red" style="font-weight:600">4.1% / mo</td>
+                  <td class="mono td-red">~3,540</td>
+                  <td><span class="badge warn">HIGH</span></td>
+                </tr>
+                <tr class="cl row-ok" onclick="toast('REPORTS drill','info')">
+                  <td style="font-weight:500">REPORTS</td>
+                  <td><span style="font-size:11px;background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border);padding:2px 7px;border-radius:10px">BATCH</span></td>
+                  <td class="mono">820</td><td class="mono td-amber">972</td>
+                  <td class="td-amber" style="font-weight:500">▲ 152 MSU (+18.5%)</td>
+                  <td class="td-amber" style="font-weight:500">2.1% / mo</td>
+                  <td class="mono td-amber">~1,080</td>
+                  <td><span class="badge neu">MEDIUM</span></td>
+                </tr>
+                <tr class="cl row-ok">
+                  <td>ONLINE_TX</td>
+                  <td><span style="font-size:11px;background:var(--purple-light);color:var(--purple);border:1px solid #c4b5fd;padding:2px 7px;border-radius:10px">CICS</span></td>
+                  <td class="mono">1,240</td><td class="mono td-green">1,311</td>
+                  <td class="td-green">▲ 71 MSU (+5.7%)</td>
+                  <td class="td-green">0.8% / mo</td>
+                  <td class="mono td-green">~1,380</td>
+                  <td><span class="badge ok">LOW</span></td>
+                </tr>
+                <tr class="cl">
+                  <td class="td-sec">BATCH_GEN</td>
+                  <td><span style="font-size:11px;background:var(--bg);color:var(--text-muted);border:1px solid var(--border);padding:2px 7px;border-radius:10px">BATCH</span></td>
+                  <td class="mono td-sec">2,400</td><td class="mono td-sec">2,381</td>
+                  <td class="td-muted">▼ 19 MSU (−0.8%)</td>
+                  <td class="td-green">stable</td>
+                  <td class="mono td-muted">~2,360</td>
+                  <td><span class="badge ok">LOW</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="tbl-foot"><span>4 active service classes · PROD1 · 90-day window</span></div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <div class="right-rail"><div class="rrb">ℹ</div><div class="rrb">⧩</div></div>
+  </div>
+  <button class="ai-fab" onclick="toast('AI: Ask me which workload drives your CPU growth, or to project a service class','info')">✦</button>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+  C6 — CEC HARDWARE CONFIG
+  Shows: Physical machine → LPAR mapping.
+  Detected from SMF 1/2/89. All read-only.
+  One CEC block per physical machine.
+  LPAR rows show entitled processors and MSU.
+════════════════════════════════════════════════════ -->
+<div class="screen" id="c6">
+  <nav class="topnav">
+    <div class="tn-logo"><div class="tn-logomark">S</div></div>
+    <div class="tn-brand">SMF Analytics</div>
+    <div class="tn-bc"><a onclick="go('c1')">CPU Trends</a><span class="sep">›</span><span class="cur">CEC Hardware</span></div>
+    <div class="tn-right"><div class="tn-btn"><div class="org-pill">🏢 Contoso Bank ⌄</div></div><div class="tn-btn">?</div></div>
+  </nav>
+  <div class="shell">
+    <aside class="sidebar" id="sb-c6"></aside>
+    <main class="main">
+      <div class="cap-wrap">
+        <nav class="cap-nav" id="cn-c6"></nav>
+        <div class="cap-content">
+          <div class="page-title">CEC Hardware Configuration</div>
+          <div class="page-desc">Physical machine and LPAR processor allocation · detected from SMF types 1, 2, and 89 · read-only</div>
+
+          <div class="fb info">
+            <div class="fb-icon">ℹ</div>
+            <div class="fb-body">
+              <div class="fb-desc">All values on this page are detected from your SMF records. Hardware model, drawer count, engine type and count, and MSU entitlement are read from SMF type 1/2 (system ID, product section) and SMF 89 (LSPR). If any values look wrong, check that SMF 1/2 records are present in your GDG and contact Maintec support.</div>
+            </div>
+          </div>
+
+          <!-- CEC 1 -->
+          <div class="cec-block">
+            <div class="cec-machine-row">
+              <div>
+                <div class="cec-mname">CEC-A · IBM z15 Model GA1</div>
+                <div class="cec-mdesc" style="margin-top:2px">Machine type 3907 · Serial detected from SMF · PROD1 and TEST1</div>
+              </div>
+              <div class="cec-chips">
+                <span class="cec-chip">4 total CP engines installed</span>
+                <span class="cec-chip">2 CP allocated to PROD1</span>
+                <span class="cec-chip">1 CP allocated to TEST1</span>
+                <span class="cec-chip">1 CP reserved / spare</span>
+                <span class="cec-chip">2 zIIP installed</span>
+                <span class="cec-chip">Detected: SMF 89 · 24 Sep 2026</span>
+              </div>
+            </div>
+            <table>
+              <thead><tr><th>LPAR</th><th>System ID</th><th>Environment</th><th>GP CP entitled</th><th>zIIP entitled</th><th>IFL entitled</th><th>MSU entitled</th><th>RMF interval</th><th>First seen</th></tr></thead>
+              <tbody>
+                <tr class="row-ok">
+                  <td style="font-weight:600">Production 1</td>
+                  <td class="mono" style="font-weight:700">PROD1</td>
+                  <td><span class="badge ok">Production</span></td>
+                  <td class="mono" style="font-weight:600">2</td>
+                  <td class="mono">2</td>
+                  <td class="mono td-muted">0</td>
+                  <td class="mono" style="font-weight:600">13,065</td>
+                  <td class="mono">15 min</td>
+                  <td class="mono td-muted" style="font-size:11px">1 Jan 2026</td>
+                </tr>
+                <tr>
+                  <td class="td-muted">Test / QA</td>
+                  <td class="mono td-muted">TEST1</td>
+                  <td><span class="badge neu">Test (suppressed)</span></td>
+                  <td class="mono td-muted">1</td>
+                  <td class="mono td-muted">0</td>
+                  <td class="mono td-muted">0</td>
+                  <td class="mono td-muted">4,000</td>
+                  <td class="mono td-muted">30 min</td>
+                  <td class="mono td-muted" style="font-size:11px">1 Jan 2026</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- CEC 2 -->
+          <div class="cec-block">
+            <div class="cec-machine-row">
+              <div>
+                <div class="cec-mname">CEC-B · IBM z15 Model GA1</div>
+                <div class="cec-mdesc" style="margin-top:2px">Machine type 3907 · PROD2 and DR1</div>
+              </div>
+              <div class="cec-chips">
+                <span class="cec-chip">2 total CP engines installed</span>
+                <span class="cec-chip">1 CP allocated to PROD2</span>
+                <span class="cec-chip">1 CP allocated to DR1</span>
+                <span class="cec-chip">1 zIIP installed</span>
+              </div>
+            </div>
+            <table>
+              <thead><tr><th>LPAR</th><th>System ID</th><th>Environment</th><th>GP CP entitled</th><th>zIIP entitled</th><th>IFL entitled</th><th>MSU entitled</th><th>RMF interval</th><th>First seen</th></tr></thead>
+              <tbody>
+                <tr class="row-ok">
+                  <td style="font-weight:600">Production 2</td>
+                  <td class="mono" style="font-weight:700">PROD2</td>
+                  <td><span class="badge ok">Production</span></td>
+                  <td class="mono" style="font-weight:600">1</td>
+                  <td class="mono">1</td>
+                  <td class="mono td-muted">0</td>
+                  <td class="mono" style="font-weight:600">8,120</td>
+                  <td class="mono">15 min</td>
+                  <td class="mono td-muted" style="font-size:11px">1 Jan 2026</td>
+                </tr>
+                <tr>
+                  <td class="td-muted">Disaster Recovery</td>
+                  <td class="mono td-muted">DR1</td>
+                  <td><span class="badge neu">DR (suppressed)</span></td>
+                  <td class="mono td-muted">1</td>
+                  <td class="mono td-muted">1</td>
+                  <td class="mono td-muted">0</td>
+                  <td class="mono td-muted">13,065</td>
+                  <td class="mono td-muted">intermittent</td>
+                  <td class="mono td-muted" style="font-size:11px">1 Jan 2026</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:12px 16px;font-size:12px;color:var(--text-sec)">
+            <strong style="color:var(--text)">Engine upgrade history detected from SMF</strong><br>
+            10 Sep 2026 — SMF 89 showed a change in PROD1's GP CP allocation from 1 to 2 engines. This is visible as a step in the CPU trend capacity line. Previous capacity: ~6,533 MIPS. New capacity: 13,065 MIPS.
+          </div>
+        </div>
+      </div>
+    </main>
+    <div class="right-rail"><div class="rrb">ℹ</div><div class="rrb">⧩</div></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+  C7 — LSPR ANALYSIS (V1 — basic LPAR MIPS from SMF 89)
+  V1: parse SMF 89, show LPAR MIPS values, compare to
+  actual observed MIPS. Honest about what V1 covers.
+  Clear V2 stub with what's coming.
+════════════════════════════════════════════════════ -->
+<div class="screen" id="c7">
+  <nav class="topnav">
+    <div class="tn-logo"><div class="tn-logomark">S</div></div>
+    <div class="tn-brand">SMF Analytics</div>
+    <div class="tn-bc"><a onclick="go('c1')">CPU Trends</a><span class="sep">›</span><span class="cur">LSPR Analysis</span></div>
+    <div class="tn-right"><div class="tn-btn"><div class="org-pill">🏢 Contoso Bank ⌄</div></div><div class="tn-btn">?</div></div>
+  </nav>
+  <div class="shell">
+    <aside class="sidebar" id="sb-c7"></aside>
+    <main class="main">
+      <div class="cap-wrap">
+        <nav class="cap-nav" id="cn-c7"></nav>
+        <div class="cap-content">
+          <div class="page-title">LSPR Analysis</div>
+          <div class="page-desc">SMF Record Type 89 · Large System Performance Reference · hardware-defined LPAR MIPS ratings</div>
+
+          <!-- V1 scope notice — honest, not apologetic -->
+          <div class="fb neutral">
+            <div class="fb-icon">📋</div>
+            <div class="fb-body">
+              <div class="fb-title">Version 1 — LPAR MIPS from SMF 89</div>
+              <div class="fb-desc">V1 reads SMF 89 to extract IBM's hardware-defined MIPS ratings for each LPAR and compares them to observed peak MIPS from SMF 70. This tells you whether your observed utilisation is realistic relative to IBM's rated capacity. Full LSPR workload analysis (LSPR workload categories, consolidation modelling) is V2 — we'll contact you when it's available.</div>
+            </div>
+          </div>
+
+          <div class="rdc">
+            <div>
+              <div class="rdc-q">What MIPS capacity did IBM rate for each LPAR — and are we using it correctly?</div>
+              <div class="rdc-title">LSPR LPAR Ratings</div>
+              <div class="rdc-body">
+                <strong>LSPR MIPS:</strong> IBM's Large System Performance Reference hardware rating for each LPAR configuration. Reflects the processor model's rated capacity at a specific workload mix.<br>
+                <strong>Observed peak:</strong> Your actual peak MIPS from SMF 70 over the last 30 runs. If observed peak consistently exceeds LSPR MIPS, the LPAR's workload mix is more CPU-intensive than IBM's rating assumes — capacity planning may need to use a lower effective MIPS figure.<br>
+                <strong>Note:</strong> LSPR MIPS values are model-dependent and change when engines are added or removed. The 10 Sep upgrade to PROD1 is reflected here.
+              </div>
+            </div>
+            <div class="rdc-right">
+              <div class="rdc-right-title">SMF 89 last detected</div>
+              <table class="sev-tbl">
+                <tr><td>PROD1</td><td style="color:var(--green)">24 Sep 2026</td></tr>
+                <tr><td>PROD2</td><td style="color:var(--green)">24 Sep 2026</td></tr>
+                <tr><td>DR1</td><td style="color:var(--amber)">22 Sep 2026</td></tr>
+              </table>
+            </div>
+          </div>
+
+          <div class="tbl-wrap">
+            <div class="tbl-head"><span style="font-size:13px;font-weight:600;color:var(--text)">LSPR ratings vs observed utilisation</span></div>
+            <table>
+              <thead>
+                <tr>
+                  <th>LPAR</th>
+                  <th>Hardware model</th>
+                  <th>GP CP entitled</th>
+                  <th>LSPR MIPS (IBM rated)</th>
+                  <th>Observed peak MIPS</th>
+                  <th>Observed % of LSPR</th>
+                  <th>Assessment</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="row-warn">
+                  <td class="mono" style="font-weight:700">PROD1</td>
+                  <td class="mono td-sec" style="font-size:11px">z15 / 3907-GA1</td>
+                  <td class="mono">2 CP</td>
+                  <td class="mono" style="font-weight:600">13,065</td>
+                  <td class="mono td-red" style="font-weight:700">11,247</td>
+                  <td>
+                    <div class="hw-bar-wrap">
+                      <div class="hw-bar-track"><div class="hw-bar-fill" style="width:86.1%;background:var(--amber)"></div></div>
+                      <span class="hw-pct td-amber">86.1%</span>
+                    </div>
+                  </td>
+                  <td style="font-size:12px;color:var(--amber)">High utilisation. Approaching LSPR ceiling. Plan for additional capacity.</td>
+                </tr>
+                <tr class="row-ok">
+                  <td class="mono" style="font-weight:700">PROD2</td>
+                  <td class="mono td-sec" style="font-size:11px">z15 / 3907-GA1</td>
+                  <td class="mono">1 CP</td>
+                  <td class="mono" style="font-weight:600">8,120</td>
+                  <td class="mono td-green">5,696</td>
+                  <td>
+                    <div class="hw-bar-wrap">
+                      <div class="hw-bar-track"><div class="hw-bar-fill" style="width:70.1%;background:var(--green)"></div></div>
+                      <span class="hw-pct td-green">70.1%</span>
+                    </div>
+                  </td>
+                  <td style="font-size:12px;color:var(--green)">Healthy. Observed workload is below LSPR rated capacity.</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="tbl-foot"><span>SMF 89 · IBM z15 · LSPR values from most recent generation per LPAR</span></div>
+          </div>
+
+          <!-- V2 STUB -->
+          <div style="background:var(--white);border:1px dashed #c4b5fd;border-radius:6px;padding:20px 22px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <span class="badge purple">V2 — Coming</span>
+              <span style="font-size:13px;font-weight:600;color:var(--text)">Full LSPR workload analysis</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-sec);line-height:1.65">
+              V2 will add LSPR workload category breakdown (CPU-intensive, I/O-intensive, mixed), allowing you to compare your actual workload mix against IBM's rating assumptions. This enables more accurate capacity headroom calculations and helps validate whether your IBM hardware rating matches your real workload characteristics. Maintec will notify you when V2 is available.
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <button class="btn btn-s btn-sm" onclick="toast('Noted — Maintec will contact you when LSPR V2 is ready','ok')">Notify me when ready</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <div class="right-rail"><div class="rrb">ℹ</div><div class="rrb">⧩</div></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+  C8 — PDF EXPORT
+  Server-side. Choose which sections to include.
+  AI summary option. Shows what will be in the report.
+  Generates and downloads as PDF.
+════════════════════════════════════════════════════ -->
+<div class="screen" id="c8">
+  <nav class="topnav">
+    <div class="tn-logo"><div class="tn-logomark">S</div></div>
+    <div class="tn-brand">SMF Analytics</div>
+    <div class="tn-bc"><a onclick="go('c1')">Capacity Planning</a><span class="sep">›</span><span class="cur">Export PDF Report</span></div>
+    <div class="tn-right"><div class="tn-btn"><div class="org-pill">🏢 Contoso Bank ⌄</div></div><div class="tn-btn">?</div></div>
+  </nav>
+  <div class="shell">
+    <aside class="sidebar" id="sb-c8"></aside>
+    <main class="main">
+      <div class="cap-wrap">
+        <nav class="cap-nav" id="cn-c8"></nav>
+        <div class="cap-content">
+          <div class="page-title">Export Capacity Report</div>
+          <div class="page-desc">Generate a PDF capacity report for your records or to share with management. Charts are rendered as vectors — they print and scale cleanly.</div>
+
+          <div style="display:grid;grid-template-columns:1fr 360px;gap:20px">
+            <!-- SECTION SELECTOR -->
+            <div>
+              <div class="chart-card" style="margin-bottom:14px">
+                <div class="chart-head"><div class="chart-title">Report contents</div></div>
+                <div style="padding:6px 18px 14px">
+                  <div class="pdf-section-row">
+                    <input type="checkbox" checked id="pdf-cover">
+                    <div class="pdf-section-lbl">
+                      <div>Cover page</div>
+                      <div class="pdf-section-sub">Organisation name · date · data window · LPAR list</div>
+                    </div>
+                  </div>
+                  <div class="pdf-section-row">
+                    <input type="checkbox" checked id="pdf-exec">
+                    <div class="pdf-section-lbl">
+                      <div style="font-weight:500">Executive summary</div>
+                      <div class="pdf-section-sub">Headroom per LPAR · top finding · recommended action</div>
+                    </div>
+                  </div>
+                  <div class="pdf-section-row">
+                    <input type="checkbox" checked id="pdf-ai">
+                    <div class="pdf-section-lbl">
+                      <div style="font-weight:500">AI analysis <span class="badge purple" style="font-size:10px;margin-left:5px">✦ AI</span></div>
+                      <div class="pdf-section-sub">Generated by claude-sonnet-4-6 · capacity narrative + recommendations</div>
+                    </div>
+                  </div>
+                  <div class="pdf-section-row">
+                    <input type="checkbox" checked id="pdf-trend">
+                    <div class="pdf-section-lbl">
+                      <div style="font-weight:500">CPU trend charts</div>
+                      <div class="pdf-section-sub">30-day peak/avg per LPAR · capacity + threshold lines · trendline</div>
+                    </div>
+                  </div>
+                  <div class="pdf-section-row">
+                    <input type="checkbox" checked id="pdf-table">
+                    <div class="pdf-section-lbl">
+                      <div>LPAR summary table</div>
+                      <div class="pdf-section-sub">All metrics per LPAR · one row per LPAR</div>
+                    </div>
+                  </div>
+                  <div class="pdf-section-row">
+                    <input type="checkbox" checked id="pdf-hw">
+                    <div class="pdf-section-lbl">
+                      <div>Headroom analysis</div>
+                      <div class="pdf-section-sub">Per-LPAR headroom · projection chart · breach dates</div>
+                    </div>
+                  </div>
+                  <div class="pdf-section-row">
+                    <input type="checkbox" id="pdf-wlm">
+                    <div class="pdf-section-lbl">
+                      <div>WLM workload trends</div>
+                      <div class="pdf-section-sub">90-day service class MSU · growth rates</div>
+                    </div>
+                  </div>
+                  <div class="pdf-section-row">
+                    <input type="checkbox" id="pdf-cec">
+                    <div class="pdf-section-lbl">
+                      <div>CEC hardware configuration</div>
+                      <div class="pdf-section-sub">Physical machine → LPAR mapping · engine allocation</div>
+                    </div>
+                  </div>
+                  <div class="pdf-section-row" style="border-bottom:none">
+                    <input type="checkbox" id="pdf-lspr">
+                    <div class="pdf-section-lbl">
+                      <div>LSPR analysis</div>
+                      <div class="pdf-section-sub">SMF 89 LPAR MIPS ratings vs observed utilisation</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- REPORT OPTIONS -->
+              <div class="chart-card">
+                <div class="chart-head"><div class="chart-title">Report options</div></div>
+                <div style="padding:14px 18px;display:flex;flex-direction:column;gap:12px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="flex:1">
+                      <div style="font-size:13px;font-weight:500;color:var(--text)">Report title</div>
+                      <div style="font-size:11px;color:var(--text-muted)">Appears on cover and header</div>
+                    </div>
+                    <input style="height:30px;background:var(--white);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;padding:0 9px;outline:none;font-family:inherit;width:200px" value="Capacity Planning Report — Q3 2026">
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="flex:1">
+                      <div style="font-size:13px;font-weight:500;color:var(--text)">Date range label</div>
+                    </div>
+                    <input style="height:30px;background:var(--white);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;padding:0 9px;outline:none;font-family:inherit;width:200px" value="26 Aug – 24 Sep 2026">
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="flex:1">
+                      <div style="font-size:13px;font-weight:500;color:var(--text)">Prepared by</div>
+                    </div>
+                    <input style="height:30px;background:var(--white);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:13px;padding:0 9px;outline:none;font-family:inherit;width:200px" value="Sarah Chen">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- PREVIEW + GENERATE -->
+            <div>
+              <div class="chart-card" style="margin-bottom:12px">
+                <div class="chart-head"><div class="chart-title">Preview</div></div>
+                <div style="padding:14px 16px">
+                  <!-- Mini PDF preview -->
+                  <div style="background:var(--text);border-radius:4px;padding:16px;font-family:monospace;font-size:10px;color:#e2e8f0;line-height:1.7">
+                    <div style="color:#a5b4fc;font-weight:600;margin-bottom:8px">CAPACITY PLANNING REPORT — Q3 2026</div>
+                    <div style="color:#64748b">Contoso Bank · SMF Analytics</div>
+                    <div style="color:#64748b">26 Aug – 24 Sep 2026 · Prepared by Sarah Chen</div>
+                    <div style="height:1px;background:#334155;margin:8px 0"></div>
+                    <div style="color:#94a3b8;margin-bottom:4px">EXECUTIVE SUMMARY</div>
+                    <div>PROD1: 86.1% peak · 6 weeks to 90% ▲</div>
+                    <div>PROD2: 70.1% peak · comfortable ✓</div>
+                    <div style="height:1px;background:#334155;margin:8px 0"></div>
+                    <div style="color:#a5b4fc;margin-bottom:4px">✦ AI ANALYSIS</div>
+                    <div style="color:#94a3b8">Generated · claude-sonnet-4-6</div>
+                    <div style="height:1px;background:#334155;margin:8px 0"></div>
+                    <div style="color:#94a3b8;margin-bottom:4px">CPU TREND CHARTS</div>
+                    <div style="background:#1e293b;height:32px;border-radius:2px;display:flex;align-items:center;justify-content:center;color:#475569">[ Chart: 30-day peak MIPS ]</div>
+                    <div style="height:8px"></div>
+                    <div style="color:#94a3b8;margin-bottom:4px">LPAR SUMMARY TABLE</div>
+                    <div style="background:#1e293b;height:28px;border-radius:2px;display:flex;align-items:center;justify-content:center;color:#475569">[ Table: 3 LPARs ]</div>
+                    <div style="height:8px"></div>
+                    <div style="color:#94a3b8;margin-bottom:4px">HEADROOM ANALYSIS</div>
+                    <div style="background:#1e293b;height:28px;border-radius:2px;display:flex;align-items:center;justify-content:center;color:#475569">[ Chart + projection ]</div>
+                  </div>
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:8px;text-align:center">~8 pages · A4 · portrait · vector charts</div>
+                </div>
+              </div>
+
+              <!-- AI SUMMARY NOTE -->
+              <div class="fb info" style="margin-bottom:12px">
+                <div class="fb-icon">✦</div>
+                <div class="fb-body">
+                  <div class="fb-title">AI analysis included</div>
+                  <div class="fb-desc">claude-sonnet-4-6 will generate a capacity narrative and action recommendations specific to your data. This adds ~10 seconds to generation time. If the AI summary fails, the PDF is exported without it — you'll see a note on that page.</div>
+                </div>
+              </div>
+
+              <button class="btn btn-p" style="width:100%;justify-content:center;padding:12px" onclick="openModal('m-pdf')">Generate PDF report</button>
+              <div style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:7px">Generated server-side · vector quality · ~10–15 seconds</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <div class="right-rail"><div class="rrb">ℹ</div><div class="rrb">⧩</div></div>
+  </div>
+</div>
+
+<!-- PDF GENERATING MODAL -->
+<div class="mbd" id="m-pdf">
+  <div class="modal" style="width:380px">
+    <div class="m-head"><div><div class="m-title">Generating PDF</div><div class="m-sub">Capacity Planning Report — Q3 2026</div></div></div>
+    <div class="m-body">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px;font-size:12px">
+          <span class="spin-ring"></span><span style="color:var(--text-sec)">Rendering CPU trend charts…</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-muted)">
+          <span style="width:9px;height:9px;border:2px solid var(--border);border-radius:50%;flex-shrink:0"></span>Generating AI analysis…
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-muted)">
+          <span style="width:9px;height:9px;border:2px solid var(--border);border-radius:50%;flex-shrink:0"></span>Building PDF…
+        </div>
+      </div>
+      <div style="margin-top:14px;height:4px;background:var(--border);border-radius:2px"><div style="width:35%;height:100%;background:var(--purple);border-radius:2px" id="pdf-prog"></div></div>
+    </div>
+    <div class="m-foot">
+      <span style="font-size:12px;color:var(--text-muted)">~10–15 seconds</span>
+      <button class="btn btn-g" onclick="closeModal('m-pdf')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const screens = ['c1','c2','c3','c4','c5','c6','c7','c8'];
+
+function go(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
+  const sc = document.getElementById(id);
+  if (sc) sc.classList.add('on');
+  document.querySelectorAll('.pb').forEach((b,i) => b.classList.toggle('on', screens[i] === id));
+  window.scrollTo(0,0);
+  // inject sidebars and cap navs
+  ['c1','c2','c3','c4','c5','c6','c7','c8'].forEach(sid => {
+    const sb = document.getElementById('sb-'+sid);
+    const cn = document.getElementById('cn-'+sid);
+    if (sb) sb.innerHTML = `
+      <div class="sib" title="Dashboard" onclick="toast('B Series — Dashboard','info')">⊞</div>
+      <div class="sib" title="Findings" onclick="toast('B Series — Findings','info')">⚑</div>
+      <div class="sib" title="CPU" onclick="toast('B Series — CPU','info')">◫</div>
+      <div class="sib" title="Jobs" onclick="toast('B Series — Jobs','info')">◻</div>
+      <div class="sib" title="DB2" onclick="toast('B Series — DB2','info')">◈</div>
+      <div class="sib ${sid===id?'on':''}" title="Capacity" style="font-size:13px;${id.startsWith('c')?'background:var(--purple-light);color:var(--purple)':''}">▣</div>
+      <div class="sib" style="margin-top:auto" title="Settings">⚙</div>
+      <div class="sib" title="You">👤</div>`;
+    if (cn) cn.innerHTML = `
+      <div class="cn-group" style="margin-top:4px">Capacity Planning</div>
+      <div class="cn-item ${id==='c1'?'on':''}" onclick="go('c1')"><span class="cn-icon">◉</span>CPU Trends</div>
+      <div class="cn-item ${id==='c3'?'on':''}" onclick="go('c3')"><span class="cn-icon">≡</span>LPAR Summary</div>
+      <div class="cn-item ${id==='c4'?'on':''}" onclick="go('c4')"><span class="cn-icon">◐</span>Headroom</div>
+      <div class="cn-item ${id==='c5'?'on':''}" onclick="go('c5')"><span class="cn-icon">⌇</span>WLM 90-day</div>
+      <div class="cn-item ${id==='c6'?'on':''}" onclick="go('c6')"><span class="cn-icon">⊟</span>CEC Hardware</div>
+      <div class="cn-item ${id==='c7'?'on':''}" onclick="go('c7')"><span class="cn-icon">⊕</span>LSPR Analysis<span class="cn-v1">V1</span></div>
+      <div class="cn-divider"></div>
+      <div class="cn-group">Export</div>
+      <div class="cn-item ${id==='c8'?'on':''}" onclick="go('c8')"><span class="cn-icon">⬇</span>PDF Report</div>`;
+  });
+  setTimeout(renderAll, 80);
+  // PDF progress simulation
+  if (id === 'c8') {
+    const pb = document.getElementById('pdf-prog');
+    if (pb) pb.style.width = '35%';
+  }
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.add('on');
+  if (id === 'm-pdf') {
+    const pb = document.getElementById('pdf-prog');
+    let w = 0;
+    const t = setInterval(() => {
+      w = Math.min(100, w + (Math.random() * 6 + 2));
+      if (pb) pb.style.width = w + '%';
+      if (w >= 100) {
+        clearInterval(t);
+        closeModal('m-pdf');
+        toast('PDF downloaded: Capacity-Planning-Report-Q3-2026.pdf', 'ok');
+      }
+    }, 400);
+  }
+}
+function closeModal(id) { document.getElementById(id).classList.remove('on'); }
+document.addEventListener('click', e => { if (e.target.classList.contains('mbd')) e.target.classList.remove('on'); });
+
+function setUnit(u) {
+  document.getElementById('unit-mips').classList.toggle('on', u === 'MIPS');
+  document.getElementById('unit-msu').classList.toggle('on', u === 'MSU');
+  toast('View: ' + u, 'info');
+}
+function setPeakAvg(m) {
+  document.getElementById('view-peak').classList.toggle('on', m === 'peak');
+  document.getElementById('view-avg').classList.toggle('on', m === 'avg');
+}
+
+function toast(msg, type='info') {
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  const i = {ok:'✓',fail:'✗',info:'ℹ',warn:'⚠'};
+  t.innerHTML = `<span style="font-size:13px;flex-shrink:0">${i[type]||'ℹ'}</span><span style="flex:1">${msg}</span><span class="t-x" onclick="this.parentElement.remove()">✕</span>`;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+/* CHARTS */
+function gw(id) { const e = document.getElementById(id); return e ? (e.getBoundingClientRect().width || 300) : 300; }
+
+function lineChart(id, series, opts={}) {
+  const el = document.getElementById(id); if (!el) return;
+  const W = gw(id), H = opts.h || 200;
+  el.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const p = opts.pad || {t:12,r:14,b:24,l:46};
+  const allV = series.flatMap(s => s.data.filter(v=>v!=null));
+  const rawMax = allV.length ? Math.max(...allV) : 100;
+  const rawMin = allV.length ? Math.min(...allV) : 0;
+  const max = opts.max || (rawMax * 1.12);
+  const min = opts.min !== undefined ? opts.min : 0;
+  const n = Math.max(...series.map(s=>s.data.length));
+  const sx = i => p.l + (i/(n-1)) * (W-p.l-p.r);
+  const sy = v => p.t + (1-(v-min)/(max-min)) * (H-p.t-p.b);
+  let svg = '';
+  const steps = 4;
+  for (let fi=0;fi<=steps;fi++) {
+    const v = min+(max-min)*(fi/steps), y = sy(v);
+    svg += `<line x1="${p.l}" x2="${W-p.r}" y1="${y}" y2="${y}" stroke="#f0f2f5" stroke-width="1"/>`;
+    const lbl = opts.fmt ? opts.fmt(v) : (v>=10000?(v/1000).toFixed(0)+'K':Math.round(v).toLocaleString());
+    svg += `<text x="${p.l-5}" y="${y+4}" text-anchor="end" fill="#94a3b8" font-size="10">${lbl}</text>`;
+  }
+  if (opts.thresholds) opts.thresholds.forEach(th => {
+    const y = sy(th.v);
+    svg += `<line x1="${p.l}" x2="${W-p.r}" y1="${y}" y2="${y}" stroke="${th.c}" stroke-width="1.5" stroke-dasharray="${th.dot?'3 3':'5 3'}"/>`;
+    if (th.lbl) svg += `<text x="${W-p.r-3}" y="${y-4}" text-anchor="end" fill="${th.c}" font-size="10">${th.lbl}</text>`;
+  });
+  // Step line for capacity
+  if (opts.stepCap) {
+    const {vals, step} = opts.stepCap;
+    let sp = `M${sx(0)},${sy(vals[0])}`;
+    for (let i=1;i<vals.length;i++) {
+      if (vals[i] !== vals[i-1]) { sp += ` L${sx(i)},${sy(vals[i-1])} L${sx(i)},${sy(vals[i])}`; }
+      else { sp += ` L${sx(i)},${sy(vals[i])}`; }
+    }
+    svg += `<path d="${sp}" fill="none" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="6 3"/>`;
+    // annotation for step
+    if (step) svg += `<circle cx="${sx(step.i)}" cy="${sy(opts.stepCap.vals[step.i])}" r="5" fill="var(--purple)" stroke="#fff" stroke-width="1.5"/><text x="${sx(step.i)+8}" y="${sy(opts.stepCap.vals[step.i])-4}" fill="var(--purple)" font-size="10">${step.lbl}</text>`;
+  }
+  series.forEach(s => {
+    const pts = s.data.map((v,i)=>v!=null?{x:sx(i),y:sy(v)}:null).filter(Boolean);
+    if (!pts.length) return;
+    if (s.area) {
+      let a = `M${pts[0].x},${pts[0].y}`; pts.slice(1).forEach(pt=>a+=` L${pt.x},${pt.y}`);
+      a += ` L${pts[pts.length-1].x},${H-p.b} L${pts[0].x},${H-p.b} Z`;
+      svg += `<path d="${a}" fill="${s.c}" fill-opacity="0.08"/>`;
+    }
+    let l = `M${pts[0].x},${pts[0].y}`; pts.slice(1).forEach(pt=>l+=` L${pt.x},${pt.y}`);
+    const dash = s.proj ? '6 4' : s.dash ? '4 3' : 'none';
+    svg += `<path d="${l}" fill="none" stroke="${s.c}" stroke-width="${s.w||1.8}" stroke-dasharray="${dash}" opacity="${s.op||1}"/>`;
+    if (s.dots) pts.forEach(pt=>svg+=`<circle cx="${pt.x}" cy="${pt.y}" r="2.5" fill="${s.c}" stroke="#fff" stroke-width="1"/>`);
+  });
+  if (opts.hl) opts.hl.forEach(h => {
+    const x = sx(h.i), y = sy(h.v);
+    svg += `<circle cx="${x}" cy="${y}" r="${h.r||5}" fill="${h.c}" stroke="#fff" stroke-width="2"/>`;
+    if (h.lbl) svg += `<text x="${x+(h.lx||8)}" y="${y+(h.ly||(-5))}" fill="${h.c}" font-size="10" font-weight="600">${h.lbl}</text>`;
+  });
+  if (opts.xl) { const step=Math.max(1,Math.floor((opts.xl.length-1)/(6))); opts.xl.forEach((l,i)=>{if(i%step===0||i===opts.xl.length-1){const xi=sx(i);svg+=`<text x="${xi}" y="${H-4}" text-anchor="middle" fill="#94a3b8" font-size="10">${l}</text>`;}});}
+  el.innerHTML = svg;
+}
+
+function stackedAreaChart(id, series, opts={}) {
+  const el = document.getElementById(id); if (!el) return;
+  const W = gw(id), H = opts.h || 240;
+  el.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const p = opts.pad || {t:12,r:14,b:24,l:52};
+  const n = series[0].data.length;
+  const totals = series[0].data.map((_,i)=>series.reduce((s,ser)=>s+ser.data[i],0));
+  const maxT = Math.max(...totals)*1.1;
+  const sx = i => p.l+(i/(n-1))*(W-p.l-p.r);
+  const sy = v => p.t+(1-v/maxT)*(H-p.t-p.b);
+  let svg='';
+  [0,.25,.5,.75,1].forEach(f=>{
+    const v=f*maxT,y=sy(v);
+    svg+=`<line x1="${p.l}" x2="${W-p.r}" y1="${y}" y2="${y}" stroke="#f0f2f5" stroke-width="1"/>`;
+    svg+=`<text x="${p.l-5}" y="${y+4}" text-anchor="end" fill="#94a3b8" font-size="10">${Math.round(v).toLocaleString()}</text>`;
+  });
+  // stacked areas
+  const cum = Array.from({length:n},()=>0);
+  series.forEach(s=>{
+    let top=[], bot=[];
+    for(let i=0;i<n;i++){bot.push({x:sx(i),y:sy(cum[i])});cum[i]+=s.data[i];top.push({x:sx(i),y:sy(cum[i])});}
+    let path=`M${bot[0].x},${bot[0].y}`;
+    bot.slice(1).forEach(pt=>path+=` L${pt.x},${pt.y}`);
+    const revTop=[...top].reverse();
+    revTop.forEach(pt=>path+=` L${pt.x},${pt.y}`);
+    path+=' Z';
+    svg+=`<path d="${path}" fill="${s.c}" fill-opacity="0.85"/>`;
+  });
+  if (opts.xl){const step=Math.max(1,Math.floor(n/8));for(let i=0;i<n;i+=step){svg+=`<text x="${sx(i)}" y="${H-4}" text-anchor="middle" fill="#94a3b8" font-size="10">${opts.xl[i]||''}</text>`;}}
+  el.innerHTML = svg;
+}
+
+function renderAll() {
+  // ── Generate data helpers ──
+  const seed = n => Array.from({length:n},(_,i)=>i);
+  const trend = (start, rate, n, noise=100) => seed(n).map(i=>start*(1+rate*i/30)+Math.sin(i*.7)*noise);
+  const cap30 = seed(30).map(i=>i<14?6533:13065); // step on day 14 = 10 Sep
+
+  // C1 — main trend chart
+  const prod1 = trend(8800,0.032,30,120);
+  const prod2 = trend(5200,0.011,30,80);
+  const dr1raw = seed(30).map(i=>(i%5===2||i%5===3)?null:7400+Math.sin(i*.9)*320);
+  const thresh30 = seed(30).map(()=>cap30.map?undefined:0).map((_,i)=>cap30[i]*0.8);
+
+  lineChart('c-main-trend', [
+    {data:dr1raw,c:'#94a3b8',w:1.2,dash:true,op:.6},
+    {data:prod2,c:'#059669',area:true,w:1.8},
+    {data:prod1,c:'#1d4ed8',area:true,w:2.2},
+    // projection dotted
+    {data:seed(30).map(i=>i>=27?prod1[27]+(prod1[27]*0.032/30)*(i-27):null),c:'#1d4ed8',proj:true,w:1.5},
+  ], {
+    h:260,max:15000,
+    thresholds:[{v:10452,c:'#b45309',lbl:'80% threshold'},{v:6533*0.8,c:'transparent'}],
+    stepCap:{vals:cap30,step:{i:14,lbl:'+1 zIIP'}},
+    xl:['26 Aug','','','','','','','','','','','','','','10 Sep','','','','','','','','','','','','','','','24 Sep'],
+    hl:[{i:29,v:prod1[29],c:'#dc2626',lbl:'86.1%'}]
+  });
+
+  // C2 — 9 mini charts
+  // mc1: peak + capacity step
+  lineChart('mc1',[{data:prod1,c:'#1d4ed8',w:1.5}],
+    {h:130,max:15000,pad:{t:8,r:8,b:16,l:36},stepCap:{vals:cap30,step:{i:14,lbl:''}},
+     thresholds:[{v:10452,c:'#b45309'},{v:cap30[29]*0.8,c:'transparent'}],
+     hl:[{i:29,v:prod1[29],c:'#dc2626',r:4}]});
+  // mc2: avg
+  const prod1avg = prod1.map(v=>v*0.73);
+  lineChart('mc2',[{data:prod1avg,c:'#059669',area:true}],{h:130,pad:{t:8,r:8,b:16,l:36},max:12000});
+  // mc3: intraday overlay (5 days × 96 intervals)
+  const intraday = id => {
+    const el = document.getElementById(id); if(!el) return;
+    const W=gw(id),H=130;el.setAttribute('viewBox',`0 0 ${W} ${H}`);
+    const p={t:8,r:8,b:16,l:8};const n=96;
+    const base=i=>{const h=i/4;return 3000+2000*Math.sin((h-8)*Math.PI/12)+Math.random()*300;};
+    let svg='';
+    const days=5;
+    for(let d=0;d<days;d++){
+      const op=0.2+d*0.18;const clr=d===4?'#dc2626':'#1d4ed8';
+      const pts=seed(n).map(i=>base(i)+(d===4&&i>=88?4000:0));
+      const sy=v=>p.t+(1-v/13000)*(H-p.t-p.b);
+      const sx=i=>p.l+(i/(n-1))*(W-p.l-p.r);
+      let l=`M${sx(0)},${sy(pts[0])}`;pts.slice(1).forEach((v,i)=>l+=` L${sx(i+1)},${sy(v)}`);
+      svg+=`<path d="${l}" fill="none" stroke="${clr}" stroke-width="${d===4?1.8:1}" opacity="${op}"/>`;
+    }
+    svg+=`<text x="${W-p.r}" y="${H-2}" text-anchor="end" fill="#94a3b8" font-size="10">24h</text>`;
+    svg+=`<text x="${p.l}" y="${H-2}" fill="#94a3b8" font-size="10">00:00</text>`;
+    el.innerHTML=svg;
+  };
+  intraday('mc3');
+  // mc4: LPAR comparison
+  lineChart('mc4',[{data:prod2,c:'#059669',w:1.2},{data:prod1,c:'#1d4ed8',w:1.8}],
+    {h:130,pad:{t:8,r:8,b:16,l:36},max:14000});
+  // mc5: by CPU type
+  const ziip30=prod1.map(v=>v*0.22+Math.random()*80);
+  lineChart('mc5',[{data:ziip30,c:'#6d28d9',area:true},{data:prod1,c:'#1d4ed8',area:true}],
+    {h:130,pad:{t:8,r:8,b:16,l:36},max:14000});
+  // mc6: pct scatter dots
+  {const el=document.getElementById('mc6');if(el){const W=gw('mc6'),H=130;el.setAttribute('viewBox',`0 0 ${W} ${H}`);const p={t:8,r:8,b:16,l:36};let svg='';const sy=v=>p.t+(1-v/100)*(H-p.t-p.b);const sx=i=>p.l+(i/29)*(W-p.l-p.r);[0,20,40,60,80,100].forEach(v=>{const y=sy(v);svg+=`<line x1="${p.l}" x2="${W-p.r}" y1="${y}" y2="${y}" stroke="#f0f2f5" stroke-width="1"/>`;svg+=`<text x="${p.l-4}" y="${y+4}" text-anchor="end" fill="#94a3b8" font-size="9">${v}%</text>`;});prod1.forEach((v,i)=>{const pct=v/13065*100;const c=pct>86?'#dc2626':pct>80?'#b45309':'#1d4ed8';svg+=`<circle cx="${sx(i)}" cy="${sy(pct)}" r="3" fill="${c}" opacity="0.8"/>`;});svg+=`<line x1="${p.l}" x2="${W-p.r}" y1="${sy(80)}" y2="${sy(80)}" stroke="#b45309" stroke-width="1" stroke-dasharray="4 3"/>`;el.innerHTML=svg;}}
+  // mc7: entitled CPU busy
+  const ecb=prod1.map(v=>v/13065*100*1.01+0.5);
+  lineChart('mc7',[{data:ecb,c:'#b45309',area:true}],{h:130,pad:{t:8,r:8,b:16,l:36},max:100,fmt:v=>Math.round(v)+'%'});
+  // mc8: zIIP eligible %
+  const ziipPct=seed(30).map(i=>36+Math.sin(i*.4)*2.5+i*0.07);
+  lineChart('mc8',[{data:ziipPct,c:'#1d4ed8',area:true}],{h:130,pad:{t:8,r:8,b:16,l:36},max:50,fmt:v=>Math.round(v)+'%'});
+  // mc9: projection
+  const projFwd=seed(30).map(i=>null);
+  const hist=seed(30).map(i=>prod1[i]);
+  const projExt=[...hist,...seed(18).map(i=>prod1[29]*(1+0.032*(i+1)/30))];
+  const capExt=seed(48).map(()=>13065);
+  const thExt=seed(48).map(()=>10452);
+  {const el=document.getElementById('mc9');if(el){const W=gw('mc9'),H=130;el.setAttribute('viewBox',`0 0 ${W} ${H}`);const p={t:8,r:8,b:16,l:36};const n=48;const max=15000;const sy=v=>p.t+(1-v/max)*(H-p.t-p.b);const sx=i=>p.l+(i/(n-1))*(W-p.l-p.r);let svg='';svg+=`<rect x="${sx(30)}" y="${p.t}" width="${sx(n-1)-sx(30)}" height="${H-p.t-p.b}" fill="#ede9fe" opacity="0.4"/>`;[0,5000,10000,15000].forEach(v=>{const y=sy(v);svg+=`<line x1="${p.l}" x2="${W-p.r}" y1="${y}" y2="${y}" stroke="#f0f2f5" stroke-width="1"/>`;svg+=`<text x="${p.l-4}" y="${y+4}" text-anchor="end" fill="#94a3b8" font-size="9">${v>=1000?Math.round(v/1000)+'K':v}</text>`;});svg+=`<line x1="${p.l}" x2="${W-p.r}" y1="${sy(13065)}" y2="${sy(13065)}" stroke="#dc2626" stroke-width="1" stroke-dasharray="5 3"/>`;svg+=`<line x1="${p.l}" x2="${W-p.r}" y1="${sy(10452)}" y2="${sy(10452)}" stroke="#b45309" stroke-width="1" stroke-dasharray="4 3"/>`;let hist2=`M${sx(0)},${sy(projExt[0])}`;projExt.slice(1,31).forEach((v,i)=>hist2+=` L${sx(i+1)},${sy(v)}`);svg+=`<path d="${hist2}" fill="none" stroke="#1d4ed8" stroke-width="2"/>`;let proj2=`M${sx(29)},${sy(projExt[29])}`;projExt.slice(30).forEach((v,i)=>proj2+=` L${sx(30+i)},${sy(v)}`);svg+=`<path d="${proj2}" fill="none" stroke="#1d4ed8" stroke-width="1.5" stroke-dasharray="5 3"/>`;const breachIdx=projExt.findIndex((v,i)=>i>=30&&v/13065>=0.9);if(breachIdx>0){svg+=`<circle cx="${sx(breachIdx)}" cy="${sy(projExt[breachIdx])}" r="5" fill="#dc2626" stroke="#fff" stroke-width="2"/>`;svg+=`<text x="${sx(breachIdx)-4}" y="${sy(projExt[breachIdx])-8}" text-anchor="middle" fill="#dc2626" font-size="9" font-weight="600">90%</text>`;}el.innerHTML=svg;}}
+
+  // C4 — projection chart
+  const projFull=[...prod1,...seed(20).map(i=>prod1[29]*(1+0.032*(i+1)/30))];
+  lineChart('c-proj',[
+    {data:[...prod1,...seed(20).map(()=>null)],c:'#1d4ed8',w:2.2,area:true},
+    {data:projFull,c:'#1d4ed8',proj:true,w:1.5},
+  ],{h:200,max:15000,
+    stepCap:{vals:seed(50).map(()=>13065)},
+    thresholds:[{v:10452,c:'#b45309',lbl:'80%'}],
+    xl:['26 Aug','10 Sep','24 Sep','','','8 Oct','','','6 Nov'],
+    hl:[{i:29,v:prod1[29],c:'#dc2626',lbl:'86.1%'},{i:47,v:projFull[47],c:'#dc2626',lbl:'~90%',lx:-24,ly:-5}]
+  });
+
+  // C5 — WLM 90-day stacked
+  const payroll90=seed(90).map(i=>2100*(1+0.041*(i/30))+Math.sin(i*.3)*80);
+  const online90=seed(90).map(i=>1240*(1+0.008*(i/30))+Math.sin(i*.5)*40);
+  const reports90=seed(90).map(i=>820*(1+0.021*(i/30))+Math.sin(i*.4)*30);
+  const batch90=seed(90).map(i=>2400*(1-0.002*(i/30))+Math.sin(i*.6)*60);
+  stackedAreaChart('c-wlm90',[
+    {data:batch90,c:'#059669'},{data:online90,c:'#1d4ed8'},
+    {data:reports90,c:'#6d28d9'},{data:payroll90,c:'#dc2626'},
+  ],{h:240,xl:seed(90).map((_,i)=>i%15===0?['1 Jul','16 Jul','31 Jul','15 Aug','30 Aug','14 Sep'][Math.floor(i/15)]:'')});
+}
+
+window.addEventListener('load',()=>{
+  go('c1');
+});
+window.addEventListener('resize',()=>setTimeout(renderAll,100));
+</script>
+</body>
+</html>
